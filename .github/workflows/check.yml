@@ -1,0 +1,41 @@
+name: Kontrola kurtů
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: padel-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Stáhnout obsazenost a poslat notifikace
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DASHBOARD_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        run: python -m checker
+
+      - name: Uložit data pro dashboard
+        if: always()
+        run: |
+          git config user.name "padel-bot"
+          git config user.email "padel-bot@users.noreply.github.com"
+          git add -A docs state
+          git diff --cached --quiet || git commit -m "data $(date -u +%H:%M)"
+          git pull --rebase --quiet || true
+          git push --quiet || true
