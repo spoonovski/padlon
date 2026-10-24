@@ -290,15 +290,31 @@ def playtomic(v):
     ds = days()
     want = {d.isoformat() for d in ds}
     starts = {cid: {} for cid in v["courts"]}
+    # Víc cest ke stejným datům; první, která odpoví, vyhrává a pamatuje se.
+    endpoints = [
+        lambda ymd: ("https://playtomic.io/api/v1/availability?user_id=me&sport_id=PADEL"
+                     f"&tenant_id={v['tenant']}&local_start_min={ymd}T00:00:00"
+                     f"&local_start_max={ymd}T23:59:59"),
+        lambda ymd: (f"https://playtomic.com/api/clubs/availability?tenant_id={v['tenant']}"
+                     f"&date={ymd}&sport_id=PADEL"),
+        lambda ymd: ("https://api.playtomic.io/v1/availability?sport_id=PADEL"
+                     f"&tenant_id={v['tenant']}&local_start_min={ymd}T00:00:00"
+                     f"&local_start_max={ymd}T23:59:59"),
+    ]
+    hdr = {"Accept": "application/json", "Referer": "https://playtomic.com/", "Origin": "https://playtomic.com"}
     for d in ds + [ds[-1] + timedelta(days=1)]:
         ymd = d.isoformat()
-        try:
-            res = s.get_json(f"https://playtomic.com/api/clubs/availability?tenant_id={v['tenant']}"
-                             f"&date={ymd}&sport_id=PADEL", headers={"Accept": "application/json"})
-        except Exception:
-            res = s.get_json("https://api.playtomic.io/v1/availability?sport_id=PADEL"
-                             f"&tenant_id={v['tenant']}&local_start_min={ymd}T00:00:00"
-                             f"&local_start_max={ymd}T23:59:59")
+        res, errors = None, []
+        for k, ep in enumerate(endpoints):
+            try:
+                res = s.get_json(ep(ymd), headers=hdr)
+                if k:  # tahle cesta funguje → příště ji zkus první
+                    endpoints.insert(0, endpoints.pop(k))
+                break
+            except Exception as e:
+                errors.append(f"{ep(ymd).split('/')[2]}: {type(e).__name__} {e}")
+        if res is None:
+            raise RuntimeError("Playtomic nedostupný – " + " | ".join(errors))
         for r in res:
             cid = r["resource_id"]
             if cid not in starts:

@@ -145,14 +145,61 @@ footer{color:var(--muted);font-size:13px;margin-top:28px}
 @media (prefers-reduced-motion:no-preference){
   .day,.seg button{transition:background-color .15s,color .15s}
 }
+
+/* ruční kontrola */
+.top-right{display:grid;justify-items:end;gap:8px}
+.refresh{
+  display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--paper);
+  border-radius:999px;padding:7px 13px 7px 10px;font-size:14px;font-weight:650;cursor:pointer;
+  font-variation-settings:"wdth" 90;
+}
+.refresh svg{width:16px;height:16px;flex:none}
+.refresh[disabled]{cursor:default;opacity:.8}
+.refresh.busy svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.refresh.busy svg{animation:none}}
+.status{font-size:13px;color:var(--muted);text-align:right;max-width:240px}
+.status.bad{color:var(--warn)}
+.tokenbox{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px;margin:0 0 18px}
+.tokenbox h2{margin:0 0 6px;font-size:18px;font-variation-settings:"wdth" 110}
+.tokenbox p,.tokenbox ol{margin:0 0 10px;font-size:14px;color:var(--muted)}
+.tokenbox ol{padding-left:20px}
+.tokenbox a{color:var(--turf-3)}
+.tokenbox .row{display:flex;gap:8px;flex-wrap:wrap}
+.tokenbox input{flex:1 1 220px;min-width:0;font:inherit;font-size:15px;padding:9px 11px;border-radius:9px;border:1px solid var(--line);background:var(--glass);color:var(--ink)}
+.btn{border:0;border-radius:9px;padding:9px 14px;font-weight:650;cursor:pointer;background:var(--ink);color:var(--glass)}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
     <h1>Volné<br>kurty</h1>
-    <div class="updated" id="updated">Načítám…</div>
+    <div class="top-right">
+      <div class="updated" id="updated">Načítám…</div>
+      <button class="refresh" id="refresh" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+        <span>Zkontrolovat teď</span>
+      </button>
+      <div class="status" id="status" role="status" aria-live="polite"></div>
+    </div>
   </header>
+
+  <section class="tokenbox" id="tokenbox" hidden>
+    <h2>Propojit s GitHubem</h2>
+    <p>Aby tlačítko mohlo spustit kontrolu, potřebuje jednou GitHub token. Uloží se jen v tomhle prohlížeči, nikam jinam se neposílá.</p>
+    <ol>
+      <li>Otevři <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">nový fine-grained token</a>.</li>
+      <li>Expiration: klidně <b>No expiration</b> nebo 1 rok. Repository access: <b>Only select repositories</b> → <b id="repo-name">tvoje repo</b>.</li>
+      <li>Permissions → Repository → <b>Actions: Read and write</b>. Nic dalšího.</li>
+      <li>Generate token, zkopíruj ho a vlož sem.</li>
+    </ol>
+    <div class="row">
+      <input id="token" type="password" placeholder="github_pat_…" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="GitHub token">
+      <button class="btn" id="token-save" type="button">Uložit a zkontrolovat</button>
+      <button class="btn ghost" id="token-cancel" type="button">Zrušit</button>
+    </div>
+  </section>
 
   <nav class="days" id="days" aria-label="Den"></nav>
 
@@ -339,6 +386,66 @@ async function load(){
   }
   setMode(mode); render();
 }
+
+// ---------- ruční kontrola přes GitHub Actions ----------
+const REPO = (() => {
+  const owner = location.hostname.endsWith(".github.io") ? location.hostname.split(".")[0] : "spoonovski";
+  const repo = location.pathname.split("/").filter(x => x && !x.includes("."))[0] || "padlon";
+  return {owner, repo};
+})();
+document.getElementById("repo-name").textContent = REPO.repo;
+const getToken = () => { try { return localStorage.getItem("padel-gh-token"); } catch(e){ return null; } };
+const setToken = t => { try { t ? localStorage.setItem("padel-gh-token", t) : localStorage.removeItem("padel-gh-token"); } catch(e){} };
+const btn = document.getElementById("refresh"), statusEl = document.getElementById("status"), box = document.getElementById("tokenbox");
+
+function setStatus(text, bad){ statusEl.textContent = text || ""; statusEl.classList.toggle("bad", !!bad); }
+function setBusy(b, label){
+  btn.disabled = b; btn.classList.toggle("busy", b);
+  btn.querySelector("span").textContent = label || (b ? "Kontroluju…" : "Zkontrolovat teď");
+}
+
+async function triggerCheck(){
+  const token = getToken();
+  if (!token){ box.hidden = false; document.getElementById("token").focus(); return; }
+  setBusy(true); setStatus("Spouštím kontrolu…");
+  const started = Date.now();
+  let r;
+  try{
+    r = await fetch(`https://api.github.com/repos/${REPO.owner}/${REPO.repo}/actions/workflows/check.yml/dispatches`, {
+      method:"POST",
+      headers:{"Accept":"application/vnd.github+json","Authorization":`Bearer ${token}`,"X-GitHub-Api-Version":"2022-11-28"},
+      body:JSON.stringify({ref:"main"})
+    });
+  } catch(e){ setBusy(false); setStatus("GitHub teď neodpovídá. Zkus to za chvíli.", true); return; }
+  if (r.status === 401 || r.status === 403 || r.status === 404){
+    setBusy(false); setToken(null); box.hidden = false;
+    setStatus("GitHub token nepřijal. Zkontroluj, že má práva Actions: Read and write k tomuhle repu, a vlož ho znovu.", true);
+    return;
+  }
+  if (!r.ok){ setBusy(false); setStatus(`Kontrolu se nepodařilo spustit (GitHub ${r.status}).`, true); return; }
+  setStatus("Kontrola běží, nová data dorazí zhruba za 1–2 minuty.");
+  const before = DATA ? DATA.generated : null;
+  const deadline = started + 5*60*1000;
+  while (Date.now() < deadline){
+    await new Promise(res => setTimeout(res, 15000));
+    try{
+      const d = await (await fetch("data.json?t=" + Date.now(), {cache:"no-store"})).json();
+      if (d.generated !== before && new Date(d.generated).getTime() > started - 60000){
+        DATA = d; render(); setBusy(false); setStatus("Hotovo, data jsou čerstvá."); setTimeout(() => setStatus(""), 6000); return;
+      }
+    } catch(e){}
+  }
+  setBusy(false); setStatus("Kontrola trvá déle než obvykle. Data se obnoví sama, až doběhne.");
+}
+
+btn.onclick = triggerCheck;
+document.getElementById("token-save").onclick = () => {
+  const t = document.getElementById("token").value.trim();
+  if (!t){ document.getElementById("token").focus(); return; }
+  setToken(t); document.getElementById("token").value = ""; box.hidden = true; triggerCheck();
+};
+document.getElementById("token-cancel").onclick = () => { box.hidden = true; setStatus(""); };
+
 load();
 setInterval(load, 5*60*1000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
