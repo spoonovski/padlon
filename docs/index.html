@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Volné kurty</title>
+<meta name="theme-color" content="#eef3f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1c2e" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Padel">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --glass:#eef3f7;      /* pozadí – sklo kurtu */
+  --paper:#ffffff;
+  --ink:#142235;        /* tmavá navy */
+  --muted:#5d6b7e;
+  --line:#d6dee8;
+  --busy:#e3e8ef;
+  --turf-1:#cfe0f3;     /* volno 60 */
+  --turf-2:#8fb5e2;     /* volno 90 */
+  --turf-3:#2f6fc0;     /* volno 120 – barva trávy */
+  --ball-2:#eef8a8;     /* tvoje okno, 90 */
+  --ball-3:#d6f03a;     /* tvoje okno, 120 – optic yellow */
+  --ball-ink:#1d2a05;
+  --win:#142235;
+  --warn:#b4471f;
+  --radius:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --glass:#0f1c2e; --paper:#16263b; --ink:#e8eef6; --muted:#93a3b8; --line:#26384f;
+    --busy:#1c2d44; --turf-1:#1f3a5e; --turf-2:#2b5c94; --turf-3:#4b8ee0;
+    --ball-2:#5d6a1c; --ball-3:#d6f03a; --win:#e8eef6; --warn:#f08a5d;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--glass); color:var(--ink);
+  font-family:Archivo, system-ui, sans-serif; font-variation-settings:"wdth" 100;
+  font-size:16px; line-height:1.45;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--turf-3);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 64px}
+
+/* hlavička */
+header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:18px}
+h1{
+  margin:0;font-weight:800;font-size:clamp(34px,8vw,56px);line-height:.92;letter-spacing:-.01em;
+  font-variation-settings:"wdth" 125;
+}
+.updated{color:var(--muted);font-size:13px;text-align:right;font-variation-settings:"wdth" 85}
+.updated b{color:var(--ink);font-weight:600}
+
+/* pásek dnů */
+.days{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -16px 18px;padding:2px 16px 4px;scroll-snap-type:x proximity}
+.days::-webkit-scrollbar{display:none}
+.day{
+  flex:0 0 auto;scroll-snap-align:start;min-width:58px;padding:8px 8px 7px;border-radius:var(--radius);
+  border:1px solid var(--line);background:var(--paper);cursor:pointer;text-align:center;
+  display:grid;gap:1px;font-variation-settings:"wdth" 80;
+}
+.day .dow{font-size:12px;color:var(--muted)}
+.day .num{font-size:22px;font-weight:700;line-height:1}
+.day .cnt{font-size:11px;font-weight:600;height:16px;line-height:16px;border-radius:8px;margin-top:3px;color:var(--muted)}
+.day .cnt.has{background:var(--ball-3);color:var(--ball-ink)}
+.day.off{opacity:.45}
+.day[aria-pressed="true"]{background:var(--ink);color:var(--glass);border-color:var(--ink)}
+.day[aria-pressed="true"] .dow{color:inherit;opacity:.7}
+
+/* nejlepší možnosti */
+.picks{background:var(--paper);border-radius:14px;padding:16px;margin-bottom:22px;border:1px solid var(--line)}
+.picks h2{margin:0 0 2px;font-size:20px;font-weight:700;font-variation-settings:"wdth" 110}
+.picks .sub{margin:0 0 12px;color:var(--muted);font-size:14px}
+.pick-venue{padding:10px 0;border-top:1px solid var(--line)}
+.pick-venue:first-of-type{border-top:0;padding-top:4px}
+.pick-venue .vn{font-weight:650;display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.pick-venue .vn a{font-size:14px;font-weight:600;color:var(--turf-3);text-decoration:none;white-space:nowrap}
+.pick-court{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:start;margin-top:6px}
+.pick-court .chips{display:flex;flex-wrap:wrap;gap:6px}
+.pick-court .cn{font-size:13px;color:var(--muted);min-width:68px;padding-top:4px;font-variation-settings:"wdth" 85}
+.chip{
+  font-variation-settings:"wdth" 75;font-weight:650;font-size:14px;padding:4px 9px;border-radius:7px;
+  background:var(--ball-2);color:var(--ball-ink);text-decoration:none;white-space:nowrap;
+}
+.chip.long{background:var(--ball-3)}
+.chip small{font-weight:500;opacity:.75;margin-left:3px}
+.empty{color:var(--muted);margin:4px 0 0}
+
+/* ovládání mřížky */
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 10px;flex-wrap:wrap}
+.bar h2{margin:0;font-size:20px;font-weight:700;font-variation-settings:"wdth" 110}
+.seg{display:inline-flex;background:var(--paper);border:1px solid var(--line);border-radius:9px;padding:2px}
+.seg button{border:0;background:transparent;padding:6px 11px;border-radius:7px;cursor:pointer;font-size:14px;font-weight:600}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--glass)}
+
+/* mřížka */
+.venue{margin-bottom:22px}
+.venue-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin:0 0 6px}
+.venue-head h3{margin:0;font-size:17px;font-weight:700}
+.venue-head .area{display:block;color:var(--muted);font-size:13px;font-weight:400}
+.venue-head a{font-size:14px;font-weight:600;color:var(--turf-3);text-decoration:none;white-space:nowrap}
+.stale{color:var(--warn);font-size:13px;margin:0 0 6px}
+.scroller{overflow-x:auto;border-radius:12px;background:var(--paper);border:1px solid var(--line)}
+table.grid{border-collapse:separate;border-spacing:2px;font-variation-settings:"wdth" 70;min-width:100%}
+.grid th,.grid td{padding:0}
+.grid thead th{font-size:11px;font-weight:600;color:var(--muted);text-align:left;height:20px;padding-left:1px;white-space:nowrap}
+.grid thead th.hour{color:var(--ink)}
+.grid th.court{
+  position:sticky;left:0;z-index:1;background:var(--paper);text-align:left;font-size:13px;font-weight:600;
+  padding:0 8px 0 8px;white-space:nowrap;min-width:78px;max-width:150px;overflow:hidden;text-overflow:ellipsis;
+  font-variation-settings:"wdth" 80;
+}
+.grid td{min-width:24px;height:28px;border-radius:4px;background:var(--busy)}
+.grid td.c\.{background:transparent}
+.grid td.c1{background:var(--turf-1)}
+.grid td.c2{background:var(--turf-2)}
+.grid td.c3{background:var(--turf-3)}
+.grid td.w.c2{background:var(--ball-2);box-shadow:inset 0 0 0 1.5px var(--ball-3)}
+.grid td.w.c3{background:var(--ball-3)}
+.grid td.past{opacity:.25}
+.grid td.wstart{box-shadow:inset 2px 0 0 var(--win)}
+.grid td.w.c3.wstart,.grid td.w.c2.wstart{box-shadow:inset 2px 0 0 var(--win)}
+
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted);margin:2px 0 18px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:16px;height:12px;border-radius:3px;display:inline-block}
+
+.err{background:var(--paper);border:1px solid var(--line);padding:16px;border-radius:12px}
+footer{color:var(--muted);font-size:13px;margin-top:28px}
+@media (min-width:760px){
+  .wrap{padding:36px 28px 80px}
+  .grid td{min-width:26px;height:30px}
+}
+@media (prefers-reduced-motion:no-preference){
+  .day,.seg button{transition:background-color .15s,color .15s}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Volné<br>kurty</h1>
+    <div class="updated" id="updated">Načítám…</div>
+  </header>
+
+  <nav class="days" id="days" aria-label="Den"></nav>
+
+  <section class="picks" id="picks" aria-live="polite"></section>
+
+  <div class="bar">
+    <h2>Obsazenost</h2>
+    <div class="seg" role="group" aria-label="Rozsah">
+      <button id="mode-win" aria-pressed="true">Moje časy</button>
+      <button id="mode-all" aria-pressed="false">Celý den</button>
+    </div>
+  </div>
+  <div class="legend">
+    <span><i style="background:var(--ball-3)"></i>Tvůj čas, 120 min</span>
+    <span><i style="background:var(--ball-2);box-shadow:inset 0 0 0 1.5px var(--ball-3)"></i>Tvůj čas, 90 min</span>
+    <span><i style="background:var(--turf-3)"></i>Volno 120</span>
+    <span><i style="background:var(--turf-2)"></i>90</span>
+    <span><i style="background:var(--turf-1)"></i>60</span>
+    <span><i style="background:var(--busy)"></i>Obsazeno</span>
+  </div>
+  <div id="grid"></div>
+
+  <footer>Každé políčko je začátek hry. Barva říká, jak dlouho se od toho času dá hrát. Data se obnovují zhruba každých 10 minut.</footer>
+</div>
+
+<script>
+const DOW = ["Ne","Po","Út","St","Čt","Pá","So"];
+const DOW_LONG = ["neděli","pondělí","úterý","středu","čtvrtek","pátek","sobotu"];
+let DATA = null, day = null, mode = "win";
+
+const hm = s => { const [h,m] = s.split(":").map(Number); return h*60+m; };
+const fmt = m => String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
+const pyDow = d => (d.getDay()+6)%7;           // 0 = pondělí jako v Pythonu
+const dateOf = ymd => { const [y,m,d] = ymd.split("-").map(Number); return new Date(y,m-1,d); };
+
+function windowsFor(ymd){ return (DATA.windows[pyDow(dateOf(ymd))] || []).map(([s,e]) => [hm(s), e ? hm(e) : 24*60]); }
+
+function slotMin(i){ return hm(DATA.grid.start) + i*DATA.grid.step; }
+
+// Stejná logika jako v checker/main.py → qualifying()
+function qualifies(ymd, i, code){
+  const dur = code === "3" ? 120 : code === "2" ? 90 : 0;
+  if (dur < 90) return 0;
+  const t = slotMin(i), ws = windowsFor(ymd);
+  for (const dd of (dur === 120 ? [120,90] : [90])){
+    if (ws.some(([s,e]) => t >= s && t + dd <= e)) return dd;
+  }
+  return 0;
+}
+function inWindow(ymd, i){ const t = slotMin(i); return windowsFor(ymd).some(([s,e]) => t >= s && t < e); }
+function isPast(ymd, i){
+  const d = dateOf(ymd); d.setMinutes(slotMin(i)); return d < new Date();
+}
+
+// sousední hratelné začátky sloučené do bloků volna (od–do)
+function blocksFor(ymd, c){
+  const blocks = [];
+  for (let i=0;i<c.length;i++){
+    const q = qualifies(ymd,i,c[i]);
+    if (!q || isPast(ymd,i)) continue;
+    const t = slotMin(i), last = blocks[blocks.length-1];
+    if (last && last.next === t){ last.end = Math.max(last.end, t+q); last.next = t + DATA.grid.step; last.long ||= q===120; }
+    else blocks.push({start:t, end:t+q, next:t+DATA.grid.step, long:q===120});
+  }
+  return blocks;
+}
+
+function countPicks(ymd){
+  let n = 0;
+  for (const v of DATA.venues) for (const r of v.rows) if (r.cells[ymd]) n += blocksFor(ymd, r.cells[ymd]).length;
+  return n;
+}
+
+function renderDays(){
+  const el = document.getElementById("days"); el.innerHTML = "";
+  for (const ymd of DATA.days){
+    const d = dateOf(ymd), off = !windowsFor(ymd).length, n = off ? 0 : countPicks(ymd);
+    const b = document.createElement("button");
+    b.className = "day" + (off ? " off" : "");
+    b.setAttribute("aria-pressed", ymd === day);
+    b.setAttribute("aria-label", `${DOW_LONG[d.getDay()]} ${d.getDate()}. ${d.getMonth()+1}., ${n} volných bloků`);
+    b.innerHTML = `<span class="dow">${DOW[d.getDay()]}</span><span class="num">${d.getDate()}</span>
+      <span class="cnt ${n ? "has" : ""}">${off ? "" : n}</span>`;
+    b.onclick = () => { day = ymd; render(); };
+    el.appendChild(b);
+  }
+}
+
+function renderPicks(){
+  const el = document.getElementById("picks"), d = dateOf(day);
+  const title = `Hratelné ve ${DOW_LONG[d.getDay()]} ${d.getDate()}. ${d.getMonth()+1}.`;
+  if (!windowsFor(day).length){
+    el.innerHTML = `<h2>${title}</h2><p class="empty">Tenhle den nesleduješ. Vyber jiný den nahoře.</p>`; return;
+  }
+  const wtxt = windowsFor(day).map(([s,e]) => e >= 1440 ? `od ${fmt(s)}` : `${fmt(s)}–${fmt(e)}`).join(" a ");
+  let html = `<h2>${title}</h2><p class="sub">Volno aspoň na 90 minut v čase ${wtxt}.</p>`, any = false;
+  for (const v of DATA.venues){
+    let vh = "";
+    for (const r of v.rows){
+      const c = r.cells[day]; if (!c) continue;
+      const blocks = blocksFor(day, c);
+      const chips = blocks.map(b => `<a class="chip ${b.long?"long":""}" href="${v.url}" target="_blank" rel="noopener" aria-label="volno ${fmt(b.start)} až ${fmt(b.end)}">${fmt(b.start)}–${fmt(b.end)}<small>${b.end-b.start}′</small></a>`);
+      if (chips.length) vh += `<div class="pick-court"><span class="cn">${esc(r.name)}</span><span class="chips">${chips.join("")}</span></div>`;
+    }
+    if (vh){ any = true; html += `<div class="pick-venue"><div class="vn">${esc(v.name)}<a href="${v.url}" target="_blank" rel="noopener">Rezervovat</a></div>${vh}</div>`; }
+  }
+  if (!any) html += `<p class="empty">Teď nic volného. Jakmile se něco uvolní, přijde ti zpráva na Telegram.</p>`;
+  el.innerHTML = html;
+}
+
+function renderGrid(){
+  const el = document.getElementById("grid"), n = DATA.grid.n;
+  let cols = [...Array(n).keys()];
+  if (mode === "win"){
+    const ws = windowsFor(day);
+    if (ws.length){
+      cols = cols.filter(i => { const t = slotMin(i); return ws.some(([s,e]) => t >= s - 30 && t < e); });
+    }
+  }
+  let html = "";
+  for (const v of DATA.venues){
+    const rows = v.rows.filter(r => r.cells[day]);
+    html += `<section class="venue"><div class="venue-head"><h3>${esc(v.name)}<span class="area">${esc(v.area||"")}</span></h3>
+      <a href="${v.url}" target="_blank" rel="noopener">Rezervovat</a></div>`;
+    if (!v.ok) html += `<p class="stale">${v.rows.length ? "Data jsou ze starší kontroly, rezervační systém teď neodpovídá." : "Rezervační systém teď neodpovídá, zkusí se to znovu při další kontrole."}</p>`;
+    if (!rows.length){ html += `</section>`; continue; }
+    html += `<div class="scroller"><table class="grid"><thead><tr><th class="court"></th>`;
+    for (const i of cols){ const t = slotMin(i); html += `<th class="${t%60?"":"hour"}">${t%60 ? "" : t/60}</th>`; }
+    html += `</tr></thead><tbody>`;
+    for (const r of rows){
+      const c = r.cells[day];
+      html += `<tr><th class="court" scope="row" title="${esc(r.name)}">${esc(r.name)}</th>`;
+      let prevW = false;
+      for (const i of cols){
+        const ch = c[i] || ".", w = inWindow(day,i), q = qualifies(day,i,ch);
+        const cls = ["c"+ch, q ? "w" : "", w && !prevW ? "wstart" : "", isPast(day,i) ? "past" : ""].join(" ");
+        const label = ch === "." ? "zavřeno" : ch === "0" ? "obsazeno" : `volno ${ch==="3"?"120+":ch==="2"?"90":"60"} min`;
+        html += `<td class="${cls}" title="${fmt(slotMin(i))} · ${label}"></td>`;
+        prevW = w;
+      }
+      html += `</tr>`;
+    }
+    html += `</tbody></table></div></section>`;
+  }
+  el.innerHTML = html;
+}
+
+function renderUpdated(){
+  const g = new Date(DATA.generated), mins = Math.round((Date.now() - g) / 60000);
+  const rel = mins < 1 ? "právě teď" : mins < 60 ? `před ${mins} min` : `v ${g.getHours()}:${String(g.getMinutes()).padStart(2,"0")}`;
+  const bad = DATA.venues.filter(v => !v.ok).length;
+  document.getElementById("updated").innerHTML = `Aktualizováno <b>${rel}</b>` + (bad ? `<br>${bad} ${bad===1?"centrum neodpovídá":"centra neodpovídají"}` : "");
+}
+
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+function render(){ renderDays(); renderPicks(); renderGrid(); renderUpdated(); }
+
+function setMode(m){
+  mode = m;
+  document.getElementById("mode-win").setAttribute("aria-pressed", m === "win");
+  document.getElementById("mode-all").setAttribute("aria-pressed", m === "all");
+  try { localStorage.setItem("padel-mode", m); } catch(e){}
+  renderGrid();
+}
+document.getElementById("mode-win").onclick = () => setMode("win");
+document.getElementById("mode-all").onclick = () => setMode("all");
+try { mode = localStorage.getItem("padel-mode") || "win"; } catch(e){}
+
+async function load(){
+  try{
+    const r = await fetch("data.json?t=" + Date.now(), {cache:"no-store"});
+    if (!r.ok) throw new Error(r.status);
+    DATA = await r.json();
+  } catch(e){
+    if (!DATA){
+      document.getElementById("updated").textContent = "";
+      document.getElementById("picks").outerHTML = `<div class="err">Data zatím nejsou. První kontrola proběhne do 10 minut po nasazení, pak stránku obnov.</div>`;
+    }
+    return;
+  }
+  if (!day || !DATA.days.includes(day)){
+    day = DATA.days.find(d => windowsFor(d).length && countPicks(d)) || DATA.days.find(d => windowsFor(d).length) || DATA.days[0];
+  }
+  setMode(mode); render();
+}
+load();
+setInterval(load, 5*60*1000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+</script>
+</body>
+</html>
