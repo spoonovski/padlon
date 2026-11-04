@@ -1,0 +1,33 @@
+rules_version = '2';
+// Pravidla pro matchmaking. Vlož je ve Firebase → Firestore Database → Rules → Publish.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function shortStr(v, n) { return v is string && v.size() <= n; }
+
+    // Volno hráče na jeden den: {player, name, date, slots, updated}
+    match /availability/{id} {
+      allow read: if signedIn();
+      allow write: if signedIn()
+        && request.resource.data.keys().hasOnly(['player', 'name', 'date', 'slots', 'updated'])
+        && shortStr(request.resource.data.player, 40)
+        && shortStr(request.resource.data.name, 24)
+        && request.resource.data.date.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && request.resource.data.slots.matches('^[01]{36}$')
+        && id == request.resource.data.player + '_' + request.resource.data.date;
+    }
+
+    // Domluvený zápas
+    match /matches/{id} {
+      allow read: if signedIn();
+      allow create, update: if signedIn()
+        && request.resource.data.keys().hasOnly(['date', 'start', 'dur', 'venue', 'venueName', 'url',
+             'players', 'names', 'invited', 'booked', 'created', 'by'])
+        && request.resource.data.players is list && request.resource.data.players.size() <= 4
+        && request.resource.data.date.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && request.resource.data.dur in [90, 120];
+      allow delete: if signedIn();
+    }
+  }
+}

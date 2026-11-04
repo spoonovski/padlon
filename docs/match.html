@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zápasy</title>
+<meta name="theme-color" content="#eef3f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1c2e" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Padel">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --glass:#eef3f7; --paper:#ffffff; --ink:#142235; --muted:#5d6b7e; --line:#d6dee8; --busy:#e3e8ef;
+  --turf-1:#cfe0f3; --turf-2:#8fb5e2; --turf-3:#2f6fc0;
+  --ball-2:#eef8a8; --ball-3:#d6f03a; --ball-ink:#1d2a05; --warn:#b4471f; --radius:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --glass:#0f1c2e; --paper:#16263b; --ink:#e8eef6; --muted:#93a3b8; --line:#26384f;
+    --busy:#1c2d44; --turf-1:#1f3a5e; --turf-2:#2b5c94; --turf-3:#4b8ee0;
+    --ball-2:#5d6a1c; --ball-3:#d6f03a; --warn:#f08a5d;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--glass);color:var(--ink);
+  font-family:Archivo, system-ui, sans-serif;font-size:16px;line-height:1.45;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--turf-3);outline-offset:2px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 72px}
+[hidden]{display:none !important}
+
+/* navigace mezi stránkami */
+.tabs{display:inline-flex;background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:3px;margin-bottom:18px}
+.tabs a{padding:7px 16px;border-radius:999px;text-decoration:none;color:var(--ink);font-weight:650;font-size:15px}
+.tabs a[aria-current="page"]{background:var(--ink);color:var(--glass)}
+
+header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:18px}
+h1{margin:0;font-weight:800;font-size:clamp(34px,8vw,56px);line-height:.92;letter-spacing:-.01em;font-variation-settings:"wdth" 125}
+.me{display:grid;justify-items:end;gap:4px;font-size:14px;color:var(--muted);text-align:right}
+.me b{color:var(--ink);font-size:16px}
+.linkbtn{border:0;background:none;padding:0;color:var(--turf-3);font-weight:600;cursor:pointer;font-size:14px}
+
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:18px}
+.card h2{margin:0 0 4px;font-size:20px;font-weight:700;font-variation-settings:"wdth" 110}
+.card .sub{margin:0 0 14px;color:var(--muted);font-size:14px}
+.empty{color:var(--muted);margin:0}
+.note{color:var(--muted);font-size:14px}
+.err{color:var(--warn)}
+
+/* výběr jména */
+.names{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.name-chip{border:1px solid var(--line);background:var(--glass);border-radius:999px;padding:7px 14px;cursor:pointer;font-weight:600}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row input{flex:1 1 200px;min-width:0;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--glass);font-size:16px}
+.btn{border:0;border-radius:10px;padding:10px 16px;font-weight:650;cursor:pointer;background:var(--ink);color:var(--glass)}
+.btn.small{padding:7px 12px;font-size:14px}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.ball{background:var(--ball-3);color:var(--ball-ink)}
+.btn[disabled]{opacity:.5;cursor:default}
+
+/* dny */
+.days{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -16px 18px;padding:2px 16px 4px}
+.days::-webkit-scrollbar{display:none}
+.day{flex:0 0 auto;min-width:58px;padding:8px 8px 7px;border-radius:var(--radius);border:1px solid var(--line);background:var(--paper);cursor:pointer;text-align:center;display:grid;gap:1px;font-variation-settings:"wdth" 80}
+.day .dow{font-size:12px;color:var(--muted)}
+.day .num{font-size:22px;font-weight:700;line-height:1}
+.day .cnt{font-size:11px;font-weight:600;height:16px;line-height:16px;border-radius:8px;margin-top:3px;color:var(--muted);display:flex;justify-content:center;align-items:center;gap:3px}
+.day .cnt.has{background:var(--turf-1);color:var(--ink)}
+.day .cnt.match{background:var(--ball-3);color:var(--ball-ink)}
+.day .mine{width:6px;height:6px;border-radius:50%;background:var(--turf-3);display:inline-block}
+.day[aria-pressed="true"]{background:var(--ink);color:var(--glass);border-color:var(--ink)}
+.day[aria-pressed="true"] .dow{color:inherit;opacity:.7}
+
+/* moje volno – mřížka půlhodin, co se vejde na šířku telefonu */
+.presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.slots{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;touch-action:none;user-select:none;-webkit-user-select:none}
+.slot{
+  height:40px;border-radius:7px;border:0;background:var(--busy);color:var(--muted);
+  font-size:13px;font-weight:600;font-variation-settings:"wdth" 75;cursor:pointer;padding:0;
+}
+.slot.hour{color:var(--ink)}
+.slot.on{background:var(--ball-3);color:var(--ball-ink)}
+.saved{font-size:13px;color:var(--muted);margin-top:10px;min-height:18px}
+@media (min-width:640px){ .slots{grid-template-columns:repeat(12,1fr)} }
+
+/* přehled kdo může */
+.scroller{overflow-x:auto;border-radius:10px}
+table.who{border-collapse:separate;border-spacing:2px;font-variation-settings:"wdth" 70;min-width:100%}
+.who th,.who td{padding:0}
+.who thead th{font-size:11px;font-weight:600;color:var(--muted);text-align:left;height:20px;white-space:nowrap}
+.who thead th.hour{color:var(--ink)}
+.who th.p{position:sticky;left:0;z-index:1;background:var(--paper);text-align:left;font-size:13px;font-weight:600;padding:0 8px;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis;font-variation-settings:"wdth" 85}
+.who th.p.you::after{content:" (ty)";color:var(--muted);font-weight:400}
+.who td{min-width:22px;height:24px;border-radius:4px;background:var(--busy)}
+.who td.on{background:var(--turf-2)}
+.who tr.sum td{background:transparent;text-align:center;font-size:12px;font-weight:700;color:var(--muted)}
+.who tr.sum td.n3{color:var(--ink)}
+.who tr.sum td.n4{background:var(--ball-3);color:var(--ball-ink)}
+
+/* možné a domluvené zápasy */
+.opt{padding:12px 0;border-top:1px solid var(--line)}
+.opt:first-of-type{border-top:0;padding-top:2px}
+.opt-head{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.opt-time{font-size:19px;font-weight:750;font-variation-settings:"wdth" 90}
+.tag{font-size:13px;font-weight:650;padding:2px 8px;border-radius:6px;background:var(--ball-3);color:var(--ball-ink)}
+.tag.miss{background:var(--turf-1);color:var(--ink)}
+.players{font-size:14px;margin:4px 0 8px}
+.players .ghost{color:var(--muted)}
+.courts{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.court{font-size:13px;font-weight:600;padding:4px 9px;border-radius:7px;background:var(--glass);border:1px solid var(--line);text-decoration:none;color:var(--ink)}
+.nocourt{font-size:13px;color:var(--warn);margin-bottom:8px}
+.form{display:grid;gap:8px;background:var(--glass);border-radius:10px;padding:12px;margin-top:6px}
+.form label{display:grid;gap:4px;font-size:13px;color:var(--muted)}
+.form select{padding:9px 10px;border-radius:9px;border:1px solid var(--line);background:var(--paper);font-size:15px}
+.form .row{align-items:end}
+
+.match{padding:12px 0;border-top:1px solid var(--line)}
+.match:first-of-type{border-top:0;padding-top:2px}
+.match .when{font-size:13px;color:var(--muted)}
+.slots4{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.seat{font-size:14px;font-weight:600;padding:5px 10px;border-radius:8px;background:var(--turf-1)}
+.seat.free{background:transparent;border:1px dashed var(--line);color:var(--muted);font-weight:500}
+.seat.you{background:var(--ball-3);color:var(--ball-ink)}
+.booked{font-size:13px;font-weight:650;color:var(--turf-3)}
+.actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.setup{line-height:1.55}
+.setup code{background:var(--glass);padding:1px 5px;border-radius:5px;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="tabs" aria-label="Sekce">
+    <a href="./">Kurty</a>
+    <a href="match.html" aria-current="page">Zápasy</a>
+  </nav>
+
+  <header class="top">
+    <h1>Kdo<br>hraje?</h1>
+    <div class="me" id="me" hidden>
+      <span>Hraješ jako</span><b id="me-name"></b>
+      <button class="linkbtn" id="me-change" type="button">Změnit</button>
+    </div>
+  </header>
+
+  <section class="card setup" id="setup" hidden>
+    <h2>Matchmaking zatím není připojený</h2>
+    <p class="note">Chybí propojení s Firebase, kam se ukládá volno hráčů. Nastavení je popsané v README v repozitáři.</p>
+  </section>
+  <p class="err" id="error" role="alert" hidden></p>
+
+  <section class="card" id="pick-name" hidden>
+    <h2>Kdo jsi?</h2>
+    <p class="sub">Vyber svoje jméno, nebo se přidej. Pamatuje si to jen tenhle prohlížeč.</p>
+    <div class="names" id="names"></div>
+    <div class="row">
+      <input id="new-name" maxlength="24" placeholder="Tvoje jméno nebo přezdívka" autocomplete="nickname" aria-label="Nové jméno">
+      <button class="btn" id="new-name-save" type="button">Přidat se</button>
+    </div>
+  </section>
+
+  <div id="app" hidden>
+    <nav class="days" id="days" aria-label="Den"></nav>
+
+    <section class="card">
+      <h2 id="mine-title">Moje volno</h2>
+      <p class="sub">Ťukni na půlhodiny, kdy můžeš začít hrát, nebo přes ně táhni prstem. Ukládá se samo.</p>
+      <div class="presets">
+        <button class="btn ghost small" data-preset="18:00-22:00" type="button">Večer 18–22</button>
+        <button class="btn ghost small" data-preset="08:00-12:00" type="button">Dopoledne</button>
+        <button class="btn ghost small" data-preset="12:00-18:00" type="button">Odpoledne</button>
+        <button class="btn ghost small" data-preset="all" type="button">Celý den</button>
+        <button class="btn ghost small" data-preset="none" type="button">Nemůžu</button>
+      </div>
+      <div class="slots" id="slots" role="group" aria-label="Moje volno po půlhodinách"></div>
+      <div class="saved" id="saved" aria-live="polite"></div>
+    </section>
+
+    <section class="card">
+      <h2>Domluvené zápasy</h2>
+      <div id="matches"></div>
+    </section>
+
+    <section class="card">
+      <h2>Možné zápasy</h2>
+      <p class="sub">Časy, kdy můžou aspoň 3 z vás hrát 90 minut a víc, a které kurty jsou tou dobou volné.</p>
+      <div id="options"></div>
+    </section>
+
+    <section class="card">
+      <h2>Kdo kdy může</h2>
+      <div class="scroller" id="who"></div>
+    </section>
+  </div>
+</div>
+
+<script type="module">
+// ---------------------------------------------------------------- data
+// Firebase se načítá jen když je v firebase-config.js vyplněný config.
+// window.__MOCK_DB__ slouží k testování bez Firebase.
+let api = null;
+async function connect(){
+  if (window.__MOCK_DB__) return window.__MOCK_DB__;
+  let cfg = null;
+  try { cfg = (await import("./firebase-config.js")).firebaseConfig; } catch(e){}
+  if (!cfg || !cfg.apiKey) return null;
+  const V = "10.12.2";
+  const [{initializeApp}, fs, au] = await Promise.all([
+    import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`),
+    import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`),
+    import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`),
+  ]);
+  const app = initializeApp(cfg);
+  await au.signInAnonymously(au.getAuth(app));
+  const db = fs.getFirestore(app);
+  const watch = (col, from, cb) => fs.onSnapshot(
+    fs.query(fs.collection(db, col), fs.where("date", ">=", from)),
+    snap => cb(snap.docs.map(d => ({id: d.id, ...d.data()}))),
+    err => showError("Nepodařilo se načíst data z Firebase: " + err.message));
+  return {
+    watchAvailability: (from, cb) => watch("availability", from, cb),
+    watchMatches: (from, cb) => watch("matches", from, cb),
+    setAvailability: (id, data) => fs.setDoc(fs.doc(db, "availability", id), data),
+    addMatch: data => fs.addDoc(fs.collection(db, "matches"), data),
+    updateMatch: (id, data) => fs.updateDoc(fs.doc(db, "matches", id), data),
+    deleteMatch: id => fs.deleteDoc(fs.doc(db, "matches", id)),
+  };
+}
+
+// ---------------------------------------------------------------- helpers
+const DOW = ["Ne","Po","Út","St","Čt","Pá","So"];
+const DOW_LONG = ["neděle","pondělí","úterý","středa","čtvrtek","pátek","sobota"];
+const DOW_ACC = ["neděli","pondělí","úterý","středu","čtvrtek","pátek","sobotu"];
+const START = 6*60, STEP = 30, N = 36;            // 06:00–24:00, stejně jako mřížka kurtů
+const $ = id => document.getElementById(id);
+const fmt = m => String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
+const hm = s => { const [h,m] = s.split(":").map(Number); return h*60+m; };
+const slotMin = i => START + i*STEP;
+const ymdOf = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const dateOf = ymd => { const [y,m,d] = ymd.split("-").map(Number); return new Date(y,m-1,d); };
+const dayLabel = ymd => { const d = dateOf(ymd); return `${DOW_ACC[d.getDay()]} ${d.getDate()}. ${d.getMonth()+1}.`; };
+const inPrep = ymd => [3,4].includes(dateOf(ymd).getDay()) ? "ve" : "v";
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const slug = s => s.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") || "hrac";
+const isPast = (ymd, i) => { const d = dateOf(ymd); d.setMinutes(slotMin(i)); return d < new Date(); };
+function showError(msg){ const e = $("error"); e.textContent = msg; e.hidden = !msg; }
+
+const DAYS = [...Array(14).keys()].map(k => { const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+k); return ymdOf(d); });
+
+// ---------------------------------------------------------------- stav
+let me = null;                      // {id, name}
+try { me = JSON.parse(localStorage.getItem("padel-me")); } catch(e){}
+let day = DAYS[0];
+let avail = [];                     // [{id, player, name, date, slots}]
+let matches = [];
+let courts = null;                  // data.json z kontroly kurtů
+let openForm = null;                // klíč možnosti s otevřeným formulářem
+
+const players = () => {
+  const m = new Map();
+  for (const a of avail) m.set(a.player, a.name);
+  if (me) m.set(me.id, me.name);
+  return [...m].map(([id,name]) => ({id,name})).sort((a,b) => a.name.localeCompare(b.name, "cs"));
+};
+const slotsOf = (player, ymd) => (avail.find(a => a.player === player && a.date === ymd) || {}).slots || "0".repeat(N);
+
+// ---------------------------------------------------------------- jméno
+function renderNamePicker(){
+  const el = $("names"); el.innerHTML = "";
+  for (const p of players()){
+    const b = document.createElement("button");
+    b.className = "name-chip"; b.type = "button"; b.textContent = p.name;
+    b.onclick = () => setMe(p);
+    el.appendChild(b);
+  }
+}
+function setMe(p){
+  me = p;
+  try { localStorage.setItem("padel-me", JSON.stringify(p)); } catch(e){}
+  showApp();
+}
+$("new-name-save").onclick = () => {
+  const name = $("new-name").value.trim();
+  if (!name){ $("new-name").focus(); return; }
+  const existing = players().find(p => p.name.toLowerCase() === name.toLowerCase());
+  setMe(existing || {id: slug(name) + "-" + Math.random().toString(36).slice(2,6), name});
+};
+$("new-name").addEventListener("keydown", e => { if (e.key === "Enter") $("new-name-save").click(); });
+$("me-change").onclick = () => { $("app").hidden = true; $("me").hidden = true; $("pick-name").hidden = false; renderNamePicker(); };
+
+function showApp(){
+  $("pick-name").hidden = true; $("app").hidden = false; $("me").hidden = false;
+  $("me-name").textContent = me.name;
+  render();
+}
+
+// ---------------------------------------------------------------- dny
+function render(){ renderDays(); renderMine(); renderMatches(); renderOptions(); renderWho(); }
+
+function renderDays(){
+  const el = $("days"); el.innerHTML = "";
+  for (const ymd of DAYS){
+    const d = dateOf(ymd);
+    const n = new Set(avail.filter(a => a.date === ymd && a.slots.includes("1")).map(a => a.player)).size;
+    const m = matches.filter(x => x.date === ymd).length;
+    const mine = slotsOf(me.id, ymd).includes("1");
+    const b = document.createElement("button");
+    b.className = "day"; b.type = "button";
+    b.setAttribute("aria-pressed", ymd === day);
+    b.setAttribute("aria-label", `${DOW_LONG[d.getDay()]} ${d.getDate()}. ${d.getMonth()+1}., může ${n} hráčů, ${m} zápasů`);
+    b.innerHTML = `<span class="dow">${DOW[d.getDay()]}</span><span class="num">${d.getDate()}</span>
+      <span class="cnt ${m ? "match" : n ? "has" : ""}">${mine ? '<i class="mine"></i>' : ""}${m ? "🎾"+m : n || ""}</span>`;
+    b.onclick = () => { day = ymd; openForm = null; render(); };
+    el.appendChild(b);
+  }
+}
+
+// ---------------------------------------------------------------- moje volno
+let draft = null, saveTimer = null, painting = null;
+function mySlots(){ return draft && draft.date === day ? draft.slots : slotsOf(me.id, day); }
+
+function renderMine(){
+  $("mine-title").textContent = `Moje volno ${inPrep(day)} ${dayLabel(day)}`;
+  const s = mySlots(), el = $("slots"); el.innerHTML = "";
+  for (let i=0;i<N;i++){
+    const t = slotMin(i), b = document.createElement("button");
+    b.type = "button"; b.dataset.i = i;
+    b.className = "slot" + (t%60 ? "" : " hour") + (s[i] === "1" ? " on" : "");
+    b.textContent = fmt(t);
+    b.setAttribute("aria-pressed", s[i] === "1");
+    if (isPast(day, i)) b.disabled = true, b.style.opacity = .35;
+    el.appendChild(b);
+  }
+}
+function setSlot(i, on){
+  const s = mySlots().split("");
+  if (s[i] === (on ? "1" : "0")) return;
+  s[i] = on ? "1" : "0";
+  commit(s.join(""));
+  const b = $("slots").children[i];
+  b.classList.toggle("on", on); b.setAttribute("aria-pressed", on);
+}
+function commit(slots){
+  draft = {date: day, slots};
+  $("saved").textContent = "Ukládám…";
+  clearTimeout(saveTimer);
+  const d = draft;
+  saveTimer = setTimeout(async () => {
+    try{
+      await api.setAvailability(`${me.id}_${d.date}`, {player: me.id, name: me.name, date: d.date, slots: d.slots, updated: Date.now()});
+      $("saved").textContent = "Uloženo";
+      setTimeout(() => { if ($("saved").textContent === "Uloženo") $("saved").textContent = ""; }, 2500);
+    } catch(e){ $("saved").textContent = "Uložení selhalo: " + e.message; }
+  }, 700);
+}
+// ťukání i tažení (myš i prst)
+const slotsEl = $("slots");
+const slotAt = (x, y) => { const el = document.elementFromPoint(x, y); return el && el.classList.contains("slot") && !el.disabled ? +el.dataset.i : null; };
+slotsEl.addEventListener("pointerdown", e => {
+  const i = slotAt(e.clientX, e.clientY); if (i === null) return;
+  e.preventDefault();
+  painting = mySlots()[i] !== "1";
+  setSlot(i, painting);
+});
+window.addEventListener("pointermove", e => { if (painting === null) return; const i = slotAt(e.clientX, e.clientY); if (i !== null) setSlot(i, painting); });
+window.addEventListener("pointerup", () => { if (painting !== null){ painting = null; renderDays(); renderOptions(); renderWho(); } });
+window.addEventListener("pointercancel", () => { painting = null; });
+slotsEl.addEventListener("keydown", e => {   // klávesnice: Enter/mezerník přepne
+  if ((e.key === "Enter" || e.key === " ") && e.target.classList.contains("slot")){
+    e.preventDefault(); const i = +e.target.dataset.i; setSlot(i, mySlots()[i] !== "1"); renderDays(); renderOptions(); renderWho();
+  }
+});
+document.querySelectorAll("[data-preset]").forEach(b => b.onclick = () => {
+  const p = b.dataset.preset;
+  let s = "";
+  for (let i=0;i<N;i++){
+    const t = slotMin(i);
+    const on = p === "all" ? true : p === "none" ? false : (t >= hm(p.split("-")[0]) && t < hm(p.split("-")[1]));
+    s += on && !isPast(day, i) ? "1" : "0";
+  }
+  commit(s); renderMine(); renderDays(); renderOptions(); renderWho();
+});
+
+// ---------------------------------------------------------------- kdo může
+function allSlots(ymd){
+  return players().map(p => ({...p, slots: p.id === me.id ? (draft && draft.date === ymd ? draft.slots : slotsOf(p.id, ymd)) : slotsOf(p.id, ymd)}));
+}
+function renderWho(){
+  const ps = allSlots(day).filter(p => p.slots.includes("1") || p.id === me.id);
+  if (!ps.some(p => p.slots.includes("1"))){ $("who").innerHTML = `<p class="empty">Na tenhle den zatím nikdo nic nezadal.</p>`; return; }
+  let first = N, last = 0;
+  ps.forEach(p => { const a = p.slots.indexOf("1"), b = p.slots.lastIndexOf("1"); if (a >= 0){ first = Math.min(first, a); last = Math.max(last, b); } });
+  first = Math.max(0, first - 2); last = Math.min(N-1, last + 2);
+  let h = `<table class="who"><thead><tr><th class="p"></th>`;
+  for (let i=first;i<=last;i++){ const t = slotMin(i); h += `<th class="${t%60?"":"hour"}">${t%60 ? "" : t/60}</th>`; }
+  h += `</tr></thead><tbody>`;
+  for (const p of ps){
+    h += `<tr><th class="p ${p.id === me.id ? "you" : ""}" scope="row">${esc(p.name)}</th>`;
+    for (let i=first;i<=last;i++) h += `<td class="${p.slots[i] === "1" ? "on" : ""}" title="${fmt(slotMin(i))}"></td>`;
+    h += `</tr>`;
+  }
+  h += `<tr class="sum"><th class="p">Celkem</th>`;
+  for (let i=first;i<=last;i++){ const n = ps.filter(p => p.slots[i] === "1").length; h += `<td class="${n>=4?"n4":n===3?"n3":""}">${n || ""}</td>`; }
+  h += `</tr></tbody></table>`;
+  $("who").innerHTML = h;
+}
+
+// ---------------------------------------------------------------- možné zápasy
+// Pro každý začátek: kdo může hrát celých 90 min. Sousední začátky se stejnou
+// partou spojíme do jednoho okna. K oknu hledáme kurty volné aspoň na 90 min.
+function freeCourtsAt(ymd, i, dur){
+  if (!courts) return [];
+  const need = dur >= 120 ? "3" : "2";
+  const out = [];
+  for (const v of courts.venues){
+    const free = v.rows.filter(r => (r.cells[ymd] || "")[i] >= need && (r.cells[ymd] || "")[i] !== ".");
+    if (free.length) out.push({venue: v, n: free.length, courts: free});
+  }
+  return out;
+}
+function computeOptions(ymd){
+  const ps = allSlots(ymd), k = 3; // 90 min = 3 půlhodiny
+  const res = [];
+  for (let i=0;i+k<=N;i++){
+    if (isPast(ymd, i)) continue;
+    const who = ps.filter(p => p.slots.slice(i, i+k) === "111").map(p => p.id);
+    if (who.length < 3) continue;
+    const key = who.slice().sort().join(",");
+    const last = res[res.length-1];
+    if (last && last.key === key && last.endStart === i-1){ last.endStart = i; last.starts.push(i); }
+    else res.push({key, who, startI: i, endStart: i, starts: [i]});
+  }
+  return res.map(o => {
+    // jak dlouho můžou všichni dohromady (od prvního začátku)
+    let end = o.endStart + k;
+    while (end < N && ps.filter(p => o.who.includes(p.id)).every(p => p.slots[end] === "1")) end++;
+    const venues = new Map();
+    for (const i of o.starts) for (const f of freeCourtsAt(ymd, i, 90)){
+      const cur = venues.get(f.venue.id) || {venue: f.venue, starts: []};
+      cur.starts.push(i); venues.set(f.venue.id, cur);
+    }
+    return {...o, from: slotMin(o.startI), to: slotMin(end), venues: [...venues.values()]};
+  });
+}
+function renderOptions(){
+  const opts = computeOptions(day), names = Object.fromEntries(players().map(p => [p.id, p.name]));
+  if (!opts.length){
+    $("options").innerHTML = `<p class="empty">Zatím se nesešli aspoň 3 lidi na 90 minut. Zadej svoje volno a pošli odkaz partě.</p>`; return;
+  }
+  let h = "";
+  opts.forEach((o, idx) => {
+    const key = `${day}|${o.key}|${o.startI}`;
+    const full = o.who.length >= 4;
+    h += `<div class="opt"><div class="opt-head"><span class="opt-time">${fmt(o.from)}–${fmt(o.to)}</span>
+      <span class="tag ${full ? "" : "miss"}">${full ? `${o.who.length} hráči` : "Chybí 1 hráč"}</span></div>
+      <div class="players">${o.who.map(id => esc(names[id] || id)).join(", ")}${full ? "" : ' <span class="ghost">+ ?</span>'}</div>`;
+    if (!courts) h += `<div class="nocourt">Volné kurty se nepodařilo načíst.</div>`;
+    else if (!o.venues.length) h += `<div class="nocourt">V tuhle dobu není nikde volný kurt na 90 minut.</div>`;
+    else h += `<div class="courts">${o.venues.map(v => `<a class="court" href="${v.venue.url}" target="_blank" rel="noopener">${esc(v.venue.name)} · začátek ${v.starts.slice(0,3).map(i => fmt(slotMin(i))).join(", ")}${v.starts.length > 3 ? "…" : ""}</a>`).join("")}</div>`;
+    if (o.venues.length){
+      if (openForm === key){
+        const firstV = o.venues[0];
+        h += `<div class="form" data-key="${esc(key)}" data-idx="${idx}">
+          <div class="row">
+            <label style="flex:1 1 120px">Začátek<select name="start">${o.starts.map(i => `<option value="${i}">${fmt(slotMin(i))}</option>`).join("")}</select></label>
+            <label style="flex:1 1 90px">Délka<select name="dur"><option value="90">90 min</option><option value="120">120 min</option></select></label>
+          </div>
+          <label>Kde<select name="venue">${o.venues.map(v => `<option value="${v.venue.id}">${esc(v.venue.name)}</option>`).join("")}</select></label>
+          <p class="note" data-hint></p>
+          <div class="actions"><button class="btn ball small" data-create type="button">Založit zápas</button><button class="btn ghost small" data-cancel type="button">Zrušit</button></div>
+        </div>`;
+      } else {
+        h += `<button class="btn small" data-open="${esc(key)}" type="button">Založit zápas</button>`;
+      }
+    }
+    h += `</div>`;
+  });
+  $("options").innerHTML = h;
+  $("options").querySelectorAll("[data-open]").forEach(b => b.onclick = () => { openForm = b.dataset.open; renderOptions(); });
+  $("options").querySelectorAll(".form").forEach(f => {
+    const o = opts[+f.dataset.idx];
+    const hint = () => {
+      const i = +f.start.value, dur = +f.dur.value, vid = f.venue.value;
+      const fc = freeCourtsAt(day, i, dur).find(x => x.venue.id === vid);
+      f.querySelector("[data-hint]").textContent = fc ? `Volné kurty: ${fc.courts.map(c => c.name).join(", ")}` : `V ${fmt(slotMin(i))} na ${dur} min tam teď volno není.`;
+      f.querySelector("[data-create]").disabled = !fc;
+    };
+    f.start = f.querySelector("[name=start]"); f.dur = f.querySelector("[name=dur]"); f.venue = f.querySelector("[name=venue]");
+    [f.start, f.dur, f.venue].forEach(s => s.onchange = hint); hint();
+    f.querySelector("[data-cancel]").onclick = () => { openForm = null; renderOptions(); };
+    f.querySelector("[data-create]").onclick = async e => {
+      e.target.disabled = true;
+      const v = courts.venues.find(x => x.id === f.venue.value);
+      const players4 = [me.id, ...o.who.filter(id => id !== me.id)].slice(0, 4);
+      const names = Object.fromEntries(players().map(p => [p.id, p.name]));
+      try{
+        await api.addMatch({
+          date: day, start: slotMin(+f.start.value), dur: +f.dur.value,
+          venue: v.id, venueName: v.name, url: v.url,
+          players: [me.id], names: {[me.id]: me.name},
+          invited: players4.filter(id => id !== me.id).map(id => ({id, name: names[id] || id})),
+          booked: null, created: Date.now(), by: me.id,
+        });
+        openForm = null; renderOptions();
+      } catch(err){ e.target.disabled = false; showError("Zápas se nepodařilo založit: " + err.message); }
+    };
+  });
+}
+
+// ---------------------------------------------------------------- domluvené zápasy
+function renderMatches(){
+  const list = matches.filter(m => m.date >= DAYS[0]).sort((a,b) => a.date.localeCompare(b.date) || a.start - b.start);
+  const today = list.filter(m => m.date === day), later = list.filter(m => m.date !== day);
+  if (!list.length){ $("matches").innerHTML = `<p class="empty">Zatím žádný zápas. Založ ho z možných zápasů níž.</p>`; return; }
+  let h = "";
+  const one = m => {
+    const inIt = m.players.includes(me.id), full = m.players.length >= 4;
+    const seats = [...m.players.map(id => `<span class="seat ${id === me.id ? "you" : ""}">${esc(m.names[id] || id)}</span>`),
+      ...[...Array(Math.max(0, 4 - m.players.length))].map(() => `<span class="seat free">volno</span>`)].join("");
+    const invited = (m.invited || []).filter(p => !m.players.includes(p.id));
+    return `<div class="match" data-id="${m.id}">
+      <div class="when">${DOW_LONG[dateOf(m.date).getDay()]} ${dateOf(m.date).getDate()}. ${dateOf(m.date).getMonth()+1}.</div>
+      <div class="opt-head"><span class="opt-time">${fmt(m.start)}–${fmt(m.start + m.dur)}</span>
+        <a class="court" href="${m.url}" target="_blank" rel="noopener">${esc(m.venueName)}</a></div>
+      <div class="slots4">${seats}</div>
+      ${invited.length ? `<p class="note" style="margin:0 0 8px">Můžou: ${invited.map(p => esc(p.name)).join(", ")}</p>` : ""}
+      ${m.booked ? `<p class="booked" style="margin:0 0 8px">✓ Zarezervoval(a) ${esc(m.names[m.booked] || "někdo")}</p>` : ""}
+      <div class="actions">
+        ${inIt ? `<button class="btn ghost small" data-leave type="button">Odhlásit se</button>`
+               : `<button class="btn small" data-join type="button" ${full ? "disabled" : ""}>${full ? "Plno" : "Přidat se"}</button>`}
+        ${inIt && !m.booked ? `<button class="btn ball small" data-book type="button">Zarezervoval jsem</button>` : ""}
+        ${m.booked === me.id ? `<button class="btn ghost small" data-unbook type="button">Zrušit rezervaci</button>` : ""}
+        ${m.by === me.id || !m.players.length ? `<button class="linkbtn" data-delete type="button">Smazat</button>` : ""}
+      </div></div>`;
+  };
+  h += today.length ? today.map(one).join("") : `<p class="empty" style="margin-bottom:8px">${inPrep(day) === "ve" ? "Ve" : "V"} ${dayLabel(day)} zatím nic.</p>`;
+  if (later.length) h += `<h3 style="font-size:15px;margin:14px 0 0;color:var(--muted);font-weight:600">Další dny</h3>` + later.map(one).join("");
+  $("matches").innerHTML = h;
+  $("matches").querySelectorAll(".match").forEach(el => {
+    const m = matches.find(x => x.id === el.dataset.id);
+    const act = (sel, fn) => { const b = el.querySelector(sel); if (b) b.onclick = async () => { b.disabled = true; try { await fn(); } catch(e){ b.disabled = false; showError("Akce se nepovedla: " + e.message); } }; };
+    act("[data-join]", () => api.updateMatch(m.id, {players: [...m.players, me.id].slice(0,4), [`names.${me.id}`]: me.name}));
+    act("[data-leave]", () => api.updateMatch(m.id, {players: m.players.filter(id => id !== me.id), ...(m.booked === me.id ? {booked: null} : {})}));
+    act("[data-book]", () => api.updateMatch(m.id, {booked: me.id}));
+    act("[data-unbook]", () => api.updateMatch(m.id, {booked: null}));
+    act("[data-delete]", () => api.deleteMatch(m.id));
+  });
+}
+
+// ---------------------------------------------------------------- start
+async function loadCourts(){
+  try { courts = await (await fetch("data.json?t=" + Date.now(), {cache: "no-store"})).json(); } catch(e){ courts = null; }
+}
+(async () => {
+  await loadCourts();
+  try { api = await connect(); } catch(e){ showError("Připojení k Firebase selhalo: " + e.message); }
+  if (!api){ $("setup").hidden = false; return; }
+  let first = true;
+  api.watchAvailability(DAYS[0], rows => {
+    avail = rows.filter(r => typeof r.slots === "string" && r.slots.length === N);
+    // vlastní rozpracované změny mají přednost, dokud se neuloží
+    if (draft){ const saved = avail.find(a => a.player === me?.id && a.date === draft.date); if (saved && saved.slots === draft.slots) draft = null; }
+    if (first){ first = false; if (me) showApp(); else { $("pick-name").hidden = false; renderNamePicker(); } return; }
+    if (me && !$("app").hidden && painting === null) render(); else if (!$("pick-name").hidden) renderNamePicker();
+  });
+  api.watchMatches(DAYS[0], rows => { matches = rows; if (me && !$("app").hidden) { renderDays(); renderMatches(); } });
+  setInterval(async () => { await loadCourts(); if (me && !$("app").hidden) renderOptions(); }, 5*60*1000);
+})();
+</script>
+</body>
+</html>

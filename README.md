@@ -98,3 +98,28 @@ Nepotřebuje žádné knihovny, stačí Python 3.10+.
 **Nepřidané:** Padel Club Spoje (na Playtomicu nenabízí žádné termíny),
 SK Slavia Padel (bez přihlášení ukazuje jen dnešek), Sky Sport City (padel jen venku),
 Padel Automat Čakovice, Císařská louka a FOR Padel Zdiměřice (dají se doplnit).
+
+---
+
+## Matchmaking (záložka Zápasy)
+
+Parta si na stránce `match.html` zadává, kdy může hrát. Appka najde časy, kdy můžou
+aspoň 3–4 lidi a je volný kurt, a dá se z nich založit zápas, ke kterému se ostatní přidají.
+Data se ukládají do Firebase (zdarma, limit je pro partu nedosažitelný).
+
+### Zapnutí (cca 5 minut, jednou)
+
+1. Na **console.firebase.google.com** → **Create a project** (třeba `padlon`), Google Analytics můžeš vypnout.
+2. **Build → Firestore Database → Create database** → lokace `eur3 (europe-west)` → **Start in production mode**.
+3. Záložka **Rules** → vlož obsah souboru `firestore.rules` z tohoto repa → **Publish**.
+4. **Build → Authentication → Get started → Sign-in method → Anonymous → Enable → Save.**
+5. **Project settings** (ozubené kolo) → dole **Your apps → `</>` (Web)** → název třeba `web` → **Register app**.
+   Zobrazí se `const firebaseConfig = { apiKey: ..., ... }`.
+6. Ten objekt vlož do `docs/firebase-config.js` místo `null`:
+   ```js
+   export const firebaseConfig = { apiKey: "...", authDomain: "...", projectId: "...", ... };
+   ```
+   Hodnoty nejsou tajné, chrání je pravidla z kroku 3.
+
+Kdo má odkaz, může zapisovat. Pro partu je to v pořádku, odkaz jen nešiř veřejně.
+

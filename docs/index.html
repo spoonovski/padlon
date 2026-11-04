@@ -146,6 +146,11 @@ footer{color:var(--muted);font-size:13px;margin-top:28px}
   .day,.seg button{transition:background-color .15s,color .15s}
 }
 
+/* navigace mezi stránkami */
+.tabs{display:inline-flex;background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:3px;margin-bottom:18px}
+.tabs a{padding:7px 16px;border-radius:999px;text-decoration:none;color:var(--ink);font-weight:650;font-size:15px}
+.tabs a[aria-current="page"]{background:var(--ink);color:var(--glass)}
+
 /* work mode */
 .mode-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-4px 0 14px}
 .workmode{
@@ -188,6 +193,10 @@ body:not(.work) .work-only{display:none}
 </head>
 <body>
 <div class="wrap">
+  <nav class="tabs" aria-label="Sekce">
+    <a href="./" aria-current="page">Kurty</a>
+    <a href="match.html">Zápasy</a>
+  </nav>
   <header class="top">
     <h1>Volné<br>kurty</h1>
     <div class="top-right">
