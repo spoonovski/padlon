@@ -7,7 +7,7 @@ když se uvolní něco, co bylo obsazené, v tvých časech.
 **Sledovaná centra:** OnePadel Zličín, Padel Powers Smíchov, Padel Džus Hostivař,
 Padelmanie, Padel Neride, Písečná (jen 2 zastřešené kurty).
 
-**Tvoje časy:** Po, Út, Čt, Pá 18–22 · So, Ne 10–13 a od 15 · středa ne ·
+**Tvoje časy:** Po, Út, Čt, Pá 18–22 · So, Ne kdykoliv · středa ne ·
 hra aspoň 90 min (ideálně 120) · 14 dní dopředu.
 Všechno se mění v `checker/config.py`.
 

@@ -16,8 +16,8 @@ WINDOWS = {
     # 2: středa vynechaná
     3: [("18:00", "22:00")],  # Čt
     4: [("18:00", "22:00")],  # Pá
-    5: [("10:00", "13:00"), ("15:00", None)],  # So
-    6: [("10:00", "13:00"), ("15:00", None)],  # Ne
+    5: [("00:00", None)],  # So – kdykoliv
+    6: [("00:00", None)],  # Ne – kdykoliv
 }
 
 MIN_DURATION = 90   # notifikace od 90 min

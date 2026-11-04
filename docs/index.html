@@ -146,6 +146,21 @@ footer{color:var(--muted);font-size:13px;margin-top:28px}
   .day,.seg button{transition:background-color .15s,color .15s}
 }
 
+/* work mode */
+.mode-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-4px 0 14px}
+.workmode{
+  display:inline-flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--paper);
+  border-radius:999px;padding:6px 14px 6px 6px;font-size:14px;font-weight:650;cursor:pointer;white-space:nowrap;flex:none;
+}
+.workmode .knob{width:34px;height:20px;border-radius:999px;background:var(--busy);position:relative;flex:none}
+.workmode .knob::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--paper);box-shadow:0 1px 2px rgba(20,34,53,.3)}
+.workmode[aria-pressed="true"]{background:var(--ink);color:var(--glass);border-color:var(--ink)}
+.workmode[aria-pressed="true"] .knob{background:var(--ball-3)}
+.workmode[aria-pressed="true"] .knob::after{left:16px}
+body:not(.work) .work-only{display:none}
+.mode-hint{font-size:13px;color:var(--muted);text-align:right}
+@media (prefers-reduced-motion:no-preference){.workmode .knob::after{transition:left .15s}}
+
 /* ruční kontrola */
 .top-right{display:grid;justify-items:end;gap:8px}
 .refresh{
@@ -201,23 +216,26 @@ footer{color:var(--muted);font-size:13px;margin-top:28px}
     </div>
   </section>
 
+  <div class="mode-row">
+    <button class="workmode" id="workmode" type="button" aria-pressed="false">
+      <span class="knob" aria-hidden="true"></span>Work mode
+    </button>
+    <span class="mode-hint" id="mode-hint"></span>
+  </div>
+
   <nav class="days" id="days" aria-label="Den"></nav>
 
   <section class="picks" id="picks" aria-live="polite"></section>
 
   <div class="bar">
     <h2>Obsazenost</h2>
-    <div class="seg" role="group" aria-label="Rozsah">
-      <button id="mode-win" aria-pressed="true">Moje časy</button>
-      <button id="mode-all" aria-pressed="false">Celý den</button>
-    </div>
   </div>
   <div class="legend">
-    <span><i style="background:var(--ball-3)"></i>Tvůj čas, 120 min</span>
-    <span><i style="background:var(--ball-2);box-shadow:inset 0 0 0 1.5px var(--ball-3)"></i>Tvůj čas, 90 min</span>
-    <span><i style="background:var(--turf-3)"></i>Volno 120</span>
-    <span><i style="background:var(--turf-2)"></i>90</span>
-    <span><i style="background:var(--turf-1)"></i>60</span>
+    <span><i style="background:var(--ball-3)"></i>Hratelné, 120+ min</span>
+    <span><i style="background:var(--ball-2);box-shadow:inset 0 0 0 1.5px var(--ball-3)"></i>Hratelné, 90 min</span>
+    <span class="work-only"><i style="background:var(--turf-3)"></i>Mimo tvé časy 120</span>
+    <span class="work-only"><i style="background:var(--turf-2)"></i>90</span>
+    <span><i style="background:var(--turf-1)"></i>Jen 60 min</span>
     <span><i style="background:var(--busy)"></i>Obsazeno</span>
   </div>
   <div id="grid"></div>
@@ -228,14 +246,19 @@ footer{color:var(--muted);font-size:13px;margin-top:28px}
 <script>
 const DOW = ["Ne","Po","Út","St","Čt","Pá","So"];
 const DOW_LONG = ["neděli","pondělí","úterý","středu","čtvrtek","pátek","sobotu"];
-let DATA = null, day = null, mode = "win";
+let DATA = null, day = null, work = false;
 
 const hm = s => { const [h,m] = s.split(":").map(Number); return h*60+m; };
 const fmt = m => String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
 const pyDow = d => (d.getDay()+6)%7;           // 0 = pondělí jako v Pythonu
 const dateOf = ymd => { const [y,m,d] = ymd.split("-").map(Number); return new Date(y,m-1,d); };
 
-function windowsFor(ymd){ return (DATA.windows[pyDow(dateOf(ymd))] || []).map(([s,e]) => [hm(s), e ? hm(e) : 24*60]); }
+// Bez Work mode: každý den celý den. Work mode: tvoje časy, víkend kdykoliv.
+function windowsFor(ymd){
+  const dow = pyDow(dateOf(ymd));
+  if (!work || dow >= 5) return [[0, 24*60]];
+  return (DATA.windows[dow] || []).map(([s,e]) => [hm(s), e ? hm(e) : 24*60]);
+}
 
 function slotMin(i){ return hm(DATA.grid.start) + i*DATA.grid.step; }
 
@@ -290,12 +313,14 @@ function renderDays(){
 
 function renderPicks(){
   const el = document.getElementById("picks"), d = dateOf(day);
-  const title = `Hratelné ve ${DOW_LONG[d.getDay()]} ${d.getDate()}. ${d.getMonth()+1}.`;
+  const title = `Hratelné ${[3,4].includes(d.getDay()) ? "ve" : "v"} ${DOW_LONG[d.getDay()]} ${d.getDate()}. ${d.getMonth()+1}.`;
   if (!windowsFor(day).length){
-    el.innerHTML = `<h2>${title}</h2><p class="empty">Tenhle den nesleduješ. Vyber jiný den nahoře.</p>`; return;
+    el.innerHTML = `<h2>${title}</h2><p class="empty">Ve Work mode tenhle den nehraješ. Vypni Work mode, nebo vyber jiný den.</p>`; return;
   }
-  const wtxt = windowsFor(day).map(([s,e]) => e >= 1440 ? `od ${fmt(s)}` : `${fmt(s)}–${fmt(e)}`).join(" a ");
-  let html = `<h2>${title}</h2><p class="sub">Volno aspoň na 90 minut v čase ${wtxt}.</p>`, any = false;
+  const ws = windowsFor(day);
+  const wtxt = ws.length === 1 && ws[0][0] === 0 && ws[0][1] >= 1440 ? "kdykoliv během dne"
+    : "v čase " + ws.map(([s,e]) => e >= 1440 ? `od ${fmt(s)}` : `${fmt(s)}–${fmt(e)}`).join(" a ");
+  let html = `<h2>${title}</h2><p class="sub">Volno aspoň na 90 minut ${wtxt}.</p>`, any = false;
   for (const v of DATA.venues){
     let vh = "";
     for (const r of v.rows){
@@ -313,11 +338,9 @@ function renderPicks(){
 function renderGrid(){
   const el = document.getElementById("grid"), n = DATA.grid.n;
   let cols = [...Array(n).keys()];
-  if (mode === "win"){
-    const ws = windowsFor(day);
-    if (ws.length){
-      cols = cols.filter(i => { const t = slotMin(i); return ws.some(([s,e]) => t >= s - 30 && t < e); });
-    }
+  const ws = windowsFor(day);
+  if (work && ws.length && !(ws[0][0] === 0 && ws[0][1] >= 1440)){
+    cols = cols.filter(i => { const t = slotMin(i); return ws.some(([s,e]) => t >= s - 30 && t < e); });
   }
   let html = "";
   for (const v of DATA.venues){
@@ -335,7 +358,7 @@ function renderGrid(){
       let prevW = false;
       for (const i of cols){
         const ch = c[i] || ".", w = inWindow(day,i), q = qualifies(day,i,ch);
-        const cls = ["c"+ch, q ? "w" : "", w && !prevW ? "wstart" : "", isPast(day,i) ? "past" : ""].join(" ");
+        const cls = ["c"+ch, q ? "w" : "", work && w && !prevW && ws[0][1] - ws[0][0] < 1440 ? "wstart" : "", isPast(day,i) ? "past" : ""].join(" ");
         const label = ch === "." ? "zavřeno" : ch === "0" ? "obsazeno" : `volno ${ch==="3"?"120+":ch==="2"?"90":"60"} min`;
         html += `<td class="${cls}" title="${fmt(slotMin(i))} · ${label}"></td>`;
         prevW = w;
@@ -358,16 +381,19 @@ function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt
 
 function render(){ renderDays(); renderPicks(); renderGrid(); renderUpdated(); }
 
-function setMode(m){
-  mode = m;
-  document.getElementById("mode-win").setAttribute("aria-pressed", m === "win");
-  document.getElementById("mode-all").setAttribute("aria-pressed", m === "all");
-  try { localStorage.setItem("padel-mode", m); } catch(e){}
-  renderGrid();
+function setWork(on, rerender){
+  work = on;
+  document.getElementById("workmode").setAttribute("aria-pressed", on);
+  document.body.classList.toggle("work", on);
+  document.getElementById("mode-hint").textContent = on ? "Všední večery bez středy, víkend celý" : "Všechny dny, celý den";
+  try { localStorage.setItem("padel-work", on ? "1" : "0"); } catch(e){}
+  if (rerender && DATA){
+    if (!windowsFor(day).length) day = DATA.days.find(d => windowsFor(d).length) || day;
+    render();
+  }
 }
-document.getElementById("mode-win").onclick = () => setMode("win");
-document.getElementById("mode-all").onclick = () => setMode("all");
-try { mode = localStorage.getItem("padel-mode") || "win"; } catch(e){}
+document.getElementById("workmode").onclick = () => setWork(!work, true);
+try { work = localStorage.getItem("padel-work") === "1"; } catch(e){}
 
 async function load(){
   try{
@@ -384,7 +410,7 @@ async function load(){
   if (!day || !DATA.days.includes(day)){
     day = DATA.days.find(d => windowsFor(d).length && countPicks(d)) || DATA.days.find(d => windowsFor(d).length) || DATA.days[0];
   }
-  setMode(mode); render();
+  setWork(work, false); render();
 }
 
 // ---------- ruční kontrola přes GitHub Actions ----------
