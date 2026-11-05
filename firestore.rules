@@ -23,7 +23,10 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create, update: if signedIn()
         && request.resource.data.keys().hasOnly(['date', 'start', 'dur', 'venue', 'venueName', 'url',
-             'players', 'names', 'invited', 'booked', 'created', 'by'])
+             'players', 'names', 'invited', 'booked', 'created', 'by', 'winners', 'losers', 'score'])
+        && (!('winners' in request.resource.data) || (request.resource.data.winners is list && request.resource.data.winners.size() <= 2))
+        && (!('losers' in request.resource.data) || (request.resource.data.losers is list && request.resource.data.losers.size() <= 2))
+        && (!('score' in request.resource.data) || shortStr(request.resource.data.score, 30))
         && request.resource.data.players is list && request.resource.data.players.size() <= 4
         && request.resource.data.date.matches('^\\d{4}-\\d{2}-\\d{2}$')
         && request.resource.data.dur in [90, 120];

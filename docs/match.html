@@ -134,6 +134,35 @@ table.who{border-collapse:separate;border-spacing:2px;font-variation-settings:"w
 .seat.you{background:var(--ball-3);color:var(--ball-ink)}
 .booked{font-size:13px;font-weight:650;color:var(--turf-3)}
 .actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+.card-head h2{margin:0}
+.section-title{margin:30px 0 4px;font-size:24px;font-weight:750;font-variation-settings:"wdth" 110}
+.section-sub{margin:0 0 14px;color:var(--muted);font-size:14px}
+.date-head{font-size:15px;font-weight:700;margin:16px 0 0;padding-top:12px;border-top:1px solid var(--line)}
+.date-head:first-child{margin-top:0;padding-top:0;border-top:0}
+.date-head + .match{border-top:0;padding-top:6px}
+.match.flash{background:var(--ball-2);border-radius:10px;padding-left:8px;padding-right:8px}
+.nowhere{font-size:13px;color:var(--muted);font-weight:600;padding:4px 9px;border-radius:7px;border:1px dashed var(--line)}
+.inline-select{padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--paper);font-size:14px}
+#new-form{margin:0 0 14px}
+#share-status:empty{display:none}
+/* výsledky a žebříček */
+.result{font-size:14px;margin:0 0 8px}
+.result b{font-weight:700}
+.pick{display:flex;flex-wrap:wrap;gap:6px}
+.pick button{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:6px 12px;font-weight:600;font-size:14px;cursor:pointer}
+.pick button[aria-pressed="true"]{background:var(--ball-3);color:var(--ball-ink);border-color:var(--ball-3)}
+.pick button.t2[aria-pressed="true"]{background:var(--turf-2);border-color:var(--turf-2);color:var(--ink)}
+.form input.score{padding:9px 10px;border-radius:9px;border:1px solid var(--line);background:var(--paper);font-size:15px}
+table.board{width:100%;border-collapse:collapse;font-size:15px}
+.board th{font-size:12px;color:var(--muted);font-weight:600;text-align:right;padding:0 6px 6px}
+.board th:nth-child(2){text-align:left}
+.board td{padding:9px 6px;border-top:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}
+.board td.n{text-align:left;font-weight:650}
+.board td.rank{width:28px;color:var(--muted);font-weight:700;text-align:left}
+.board td.pts{font-weight:800;font-size:17px}
+.board tr.you td.n::after{content:" (ty)";color:var(--muted);font-weight:400}
+.board tr:first-child td.rank{color:var(--ink)}
 .setup{line-height:1.55}
 .setup code{background:var(--glass);padding:1px 5px;border-radius:5px;font-size:14px}
 </style>
@@ -170,6 +199,41 @@ table.who{border-collapse:separate;border-spacing:2px;font-variation-settings:"w
   </section>
 
   <div id="app" hidden>
+    <section class="card">
+      <div class="card-head">
+        <h2>Zápasy</h2>
+        <button class="btn ball small" id="new-open" type="button">+ Nový zápas</button>
+      </div>
+      <div class="form" id="new-form" hidden>
+        <div class="row">
+          <label style="flex:2 1 150px">Den<select id="nf-date"></select></label>
+          <label style="flex:1 1 90px">Začátek<select id="nf-start"></select></label>
+          <label style="flex:1 1 90px">Délka<select id="nf-dur"><option value="90">90 min</option><option value="120">120 min</option></select></label>
+        </div>
+        <label>Kde<select id="nf-venue"></select></label>
+        <p class="note" id="nf-hint" style="margin:0"></p>
+        <div class="actions">
+          <button class="btn ball small" id="nf-create" type="button">Založit a přidat se</button>
+          <button class="btn ghost small" id="nf-cancel" type="button">Zrušit</button>
+        </div>
+      </div>
+      <div id="matches"></div>
+      <p class="saved" id="share-status" aria-live="polite"></p>
+    </section>
+
+    <section class="card">
+      <h2>Žebříček</h2>
+      <p class="sub">Výhra 3 body, prohra 0. Výsledek zapíše kdokoliv z hráčů po zápase.</p>
+      <div id="board"></div>
+    </section>
+
+    <section class="card" id="played-card" hidden>
+      <h2>Odehrané</h2>
+      <div id="played"></div>
+    </section>
+
+    <h2 class="section-title">Kdy se sejdete?</h2>
+    <p class="section-sub">Nevíte, kdy hrát? Naklikej, kdy můžeš. Appka najde časy, kdy můžou aspoň 3 z vás a je volný kurt.</p>
     <nav class="days" id="days" aria-label="Den"></nav>
 
     <section class="card">
@@ -184,11 +248,6 @@ table.who{border-collapse:separate;border-spacing:2px;font-variation-settings:"w
       </div>
       <div class="slots" id="slots" role="group" aria-label="Moje volno po půlhodinách"></div>
       <div class="saved" id="saved" aria-live="polite"></div>
-    </section>
-
-    <section class="card">
-      <h2>Domluvené zápasy</h2>
-      <div id="matches"></div>
     </section>
 
     <section class="card">
@@ -305,7 +364,7 @@ function showApp(){
 }
 
 // ---------------------------------------------------------------- dny
-function render(){ renderDays(); renderMine(); renderMatches(); renderOptions(); renderWho(); }
+function render(){ renderDays(); renderMine(); renderMatches(); renderPlayed(); renderBoard(); renderOptions(); renderWho(); }
 
 function renderDays(){
   const el = $("days"); el.innerHTML = "";
@@ -518,33 +577,57 @@ function renderOptions(){
 }
 
 // ---------------------------------------------------------------- domluvené zápasy
+const venueList = () => courts ? courts.venues.map(v => ({id: v.id, name: v.name, url: v.url})) : [];
+const dateTitle = ymd => { const d = dateOf(ymd); const t = DAYS[0], z = DAYS[1];
+  const y = new Date(); y.setDate(y.getDate()-1);
+  return (ymd === t ? "Dnes, " : ymd === z ? "Zítra, " : ymd === ymdOf(y) ? "Včera, " : "") + `${DOW_LONG[d.getDay()]} ${d.getDate()}. ${d.getMonth()+1}.`; };
+const idxOf = m => (m - START) / STEP;
+function freeSummary(ymd, startMin, dur){
+  const i = idxOf(startMin);
+  if (!courts || i < 0 || i >= N) return [];
+  return freeCourtsAt(ymd, i, dur);
+}
+
 function renderMatches(){
-  const list = matches.filter(m => m.date >= DAYS[0]).sort((a,b) => a.date.localeCompare(b.date) || a.start - b.start);
-  const today = list.filter(m => m.date === day), later = list.filter(m => m.date !== day);
-  if (!list.length){ $("matches").innerHTML = `<p class="empty">Zatím žádný zápas. Založ ho z možných zápasů níž.</p>`; return; }
-  let h = "";
-  const one = m => {
-    const inIt = m.players.includes(me.id), full = m.players.length >= 4;
+  const nowMin = new Date().getHours()*60 + new Date().getMinutes();
+  const list = matches
+    .filter(m => m.date > DAYS[0] || (m.date === DAYS[0] && m.start + m.dur > nowMin))
+    .sort((a,b) => a.date.localeCompare(b.date) || a.start - b.start);
+  if (!list.length){ $("matches").innerHTML = `<p class="empty">Zatím žádný zápas. Založ první a pošli ho partě.</p>`; return; }
+  let h = "", lastDate = null;
+  for (const m of list){
+    if (m.date !== lastDate){ h += `<h3 class="date-head">${dateTitle(m.date)}</h3>`; lastDate = m.date; }
+    const inIt = m.players.includes(me.id), full = m.players.length >= 4, missing = 4 - m.players.length;
     const seats = [...m.players.map(id => `<span class="seat ${id === me.id ? "you" : ""}">${esc(m.names[id] || id)}</span>`),
-      ...[...Array(Math.max(0, 4 - m.players.length))].map(() => `<span class="seat free">volno</span>`)].join("");
+      ...[...Array(Math.max(0, missing))].map(() => `<span class="seat free">volno</span>`)].join("");
     const invited = (m.invited || []).filter(p => !m.players.includes(p.id));
-    return `<div class="match" data-id="${m.id}">
-      <div class="when">${DOW_LONG[dateOf(m.date).getDay()]} ${dateOf(m.date).getDate()}. ${dateOf(m.date).getMonth()+1}.</div>
-      <div class="opt-head"><span class="opt-time">${fmt(m.start)}–${fmt(m.start + m.dur)}</span>
-        <a class="court" href="${m.url}" target="_blank" rel="noopener">${esc(m.venueName)}</a></div>
+    let where;
+    if (m.venue) where = `<a class="court" href="${m.url}" target="_blank" rel="noopener">${esc(m.venueName)}</a>`;
+    else where = `<span class="nowhere">Místo zatím není</span>`;
+    let freeLine = "";
+    if (!m.booked){
+      const fr = freeSummary(m.date, m.start, m.dur);
+      const here = m.venue ? fr.find(f => f.venue.id === m.venue) : null;
+      if (m.venue) freeLine = here ? `Volné kurty tam teď: ${here.courts.map(c => esc(c.name)).join(", ")}` : (courts ? `V ${esc(m.venueName)} teď na tenhle čas volno není.` : "");
+      else freeLine = fr.length ? `Teď volno: ${fr.map(f => esc(f.venue.name)).join(", ")}` : (courts ? "V tuhle dobu teď není volno nikde." : "");
+    }
+    h += `<div class="match" id="m-${m.id}" data-id="${m.id}">
+      <div class="opt-head"><span class="opt-time">${fmt(m.start)}–${fmt(m.start + m.dur)}</span>${where}</div>
       <div class="slots4">${seats}</div>
-      ${invited.length ? `<p class="note" style="margin:0 0 8px">Můžou: ${invited.map(p => esc(p.name)).join(", ")}</p>` : ""}
+      ${!full ? `<p class="note" style="margin:0 0 6px">${missing === 1 ? "Chybí 1 hráč" : `Chybí ${missing} hráči`}</p>` : ""}
+      ${invited.length ? `<p class="note" style="margin:0 0 6px">Můžou: ${invited.map(p => esc(p.name)).join(", ")}</p>` : ""}
+      ${freeLine ? `<p class="note" style="margin:0 0 8px">${freeLine}</p>` : ""}
       ${m.booked ? `<p class="booked" style="margin:0 0 8px">✓ Zarezervoval(a) ${esc(m.names[m.booked] || "někdo")}</p>` : ""}
       <div class="actions">
         ${inIt ? `<button class="btn ghost small" data-leave type="button">Odhlásit se</button>`
                : `<button class="btn small" data-join type="button" ${full ? "disabled" : ""}>${full ? "Plno" : "Přidat se"}</button>`}
-        ${inIt && !m.booked ? `<button class="btn ball small" data-book type="button">Zarezervoval jsem</button>` : ""}
+        ${inIt && !m.venue && courts ? `<select class="inline-select" data-venue aria-label="Kde hrajeme"><option value="">Vybrat místo…</option>${venueList().map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join("")}</select>` : ""}
+        ${inIt && m.venue && !m.booked ? `<button class="btn ball small" data-book type="button">Zarezervoval jsem</button>` : ""}
         ${m.booked === me.id ? `<button class="btn ghost small" data-unbook type="button">Zrušit rezervaci</button>` : ""}
+        <button class="btn ghost small" data-share type="button">Poslat partě</button>
         ${m.by === me.id || !m.players.length ? `<button class="linkbtn" data-delete type="button">Smazat</button>` : ""}
       </div></div>`;
-  };
-  h += today.length ? today.map(one).join("") : `<p class="empty" style="margin-bottom:8px">${inPrep(day) === "ve" ? "Ve" : "V"} ${dayLabel(day)} zatím nic.</p>`;
-  if (later.length) h += `<h3 style="font-size:15px;margin:14px 0 0;color:var(--muted);font-weight:600">Další dny</h3>` + later.map(one).join("");
+  }
   $("matches").innerHTML = h;
   $("matches").querySelectorAll(".match").forEach(el => {
     const m = matches.find(x => x.id === el.dataset.id);
@@ -554,8 +637,179 @@ function renderMatches(){
     act("[data-book]", () => api.updateMatch(m.id, {booked: me.id}));
     act("[data-unbook]", () => api.updateMatch(m.id, {booked: null}));
     act("[data-delete]", () => api.deleteMatch(m.id));
+    const vs = el.querySelector("[data-venue]");
+    if (vs) vs.onchange = async () => {
+      const v = venueList().find(x => x.id === vs.value); if (!v) return;
+      vs.disabled = true;
+      try { await api.updateMatch(m.id, {venue: v.id, venueName: v.name, url: v.url}); } catch(e){ vs.disabled = false; showError("Místo se nepodařilo uložit: " + e.message); }
+    };
+    el.querySelector("[data-share]").onclick = () => shareMatch(m);
+  });
+  highlightFromHash();
+}
+
+// ---------------------------------------------------------------- odehrané a výsledky
+const ended = m => { const d = dateOf(m.date); d.setMinutes(m.start + m.dur); return d <= new Date(); };
+const allNames = () => { const n = Object.fromEntries(players().map(p => [p.id, p.name])); for (const m of matches) Object.assign(n, m.names || {}); return n; };
+let resultOpen = null, resultDraft = null;
+
+function renderPlayed(){
+  const names = allNames();
+  const past = matches.filter(ended).sort((a,b) => b.date.localeCompare(a.date) || b.start - a.start);
+  const todo = past.filter(m => !m.winners && m.players.length);
+  const done = past.filter(m => m.winners).slice(0, 10);
+  $("played-card").hidden = !todo.length && !done.length;
+  let h = "";
+  for (const m of [...todo, ...done]){
+    const head = `<div class="when">${dateTitle(m.date)}</div><div class="opt-head"><span class="opt-time">${fmt(m.start)}–${fmt(m.start + m.dur)}</span>${m.venue ? `<span class="court">${esc(m.venueName)}</span>` : ""}</div>`;
+    if (m.winners){
+      h += `<div class="match" data-id="${m.id}">${head}
+        <p class="result">🏆 <b>${m.winners.map(id => esc(names[id] || id)).join(" & ")}</b> porazili ${m.losers.map(id => esc(names[id] || id)).join(" & ")}${m.score ? ` · ${esc(m.score)}` : ""}</p>
+        <div class="actions"><button class="linkbtn" data-result type="button">Opravit výsledek</button></div>
+        ${resultOpen === m.id ? resultForm(m) : ""}</div>`;
+    } else {
+      h += `<div class="match" data-id="${m.id}">${head}
+        <p class="note" style="margin:6px 0 8px">Hráli: ${m.players.map(id => esc(names[id] || id)).join(", ")}</p>
+        ${resultOpen === m.id ? resultForm(m) : `<div class="actions"><button class="btn ball small" data-result type="button">Zapsat výsledek</button><button class="linkbtn" data-skip type="button">Nehráli jsme</button></div>`}</div>`;
+    }
+  }
+  $("played").innerHTML = h;
+  $("played").querySelectorAll(".match").forEach(el => {
+    const m = matches.find(x => x.id === el.dataset.id);
+    const r = el.querySelector("[data-result]");
+    if (r) r.onclick = () => {
+      resultOpen = resultOpen === m.id ? null : m.id;
+      resultDraft = {t1: (m.winners || m.players.slice(0,2)).slice(), t2: (m.losers || m.players.slice(2,4)).slice(), win: m.winners ? 1 : null, score: m.score || ""};
+      renderPlayed();
+    };
+    const sk = el.querySelector("[data-skip]");
+    if (sk) sk.onclick = async () => { sk.disabled = true; try { await api.deleteMatch(m.id); } catch(e){ sk.disabled = false; showError("Smazání se nepovedlo: " + e.message); } };
+    const f = el.querySelector(".form"); if (f) wireResultForm(f, m);
   });
 }
+
+function resultForm(m){
+  const names = allNames(), d = resultDraft;
+  const pool = [...new Set([...m.players, ...d.t1, ...d.t2, ...players().map(p => p.id)])];
+  const chips = cls => pool.map(id => `<button type="button" class="${cls}" data-p="${id}" aria-pressed="${(cls === "t1" ? d.t1 : d.t2).includes(id)}">${esc(names[id] || id)}</button>`).join("");
+  const label = t => t.length ? t.map(id => esc(names[id] || id)).join(" & ") : "?";
+  return `<div class="form">
+    <label>Tým 1<div class="pick">${chips("t1")}</div></label>
+    <label>Tým 2<div class="pick">${chips("t2")}</div></label>
+    <label>Kdo vyhrál?<div class="pick">
+      <button type="button" data-win="1" aria-pressed="${d.win === 1}">${label(d.t1)}</button>
+      <button type="button" class="t2" data-win="2" aria-pressed="${d.win === 2}">${label(d.t2)}</button></div></label>
+    <label>Skóre (nepovinné)<input class="score" maxlength="30" placeholder="např. 6:4 3:6 6:2" value="${esc(d.score)}"></label>
+    <p class="note err" data-msg style="margin:0"></p>
+    <div class="actions"><button class="btn ball small" data-save type="button">Uložit výsledek</button><button class="btn ghost small" data-cancel type="button">Zrušit</button></div>
+  </div>`;
+}
+function wireResultForm(f, m){
+  const d = resultDraft;
+  f.querySelectorAll(".pick button[data-p]").forEach(b => b.onclick = () => {
+    const id = b.dataset.p, mine = b.classList.contains("t1") ? d.t1 : d.t2, other = mine === d.t1 ? d.t2 : d.t1;
+    if (mine.includes(id)) mine.splice(mine.indexOf(id), 1);
+    else { if (mine.length >= 2) mine.shift(); mine.push(id); if (other.includes(id)) other.splice(other.indexOf(id), 1); }
+    d.score = f.querySelector(".score").value; renderPlayed();
+  });
+  f.querySelectorAll("[data-win]").forEach(b => b.onclick = () => { d.win = +b.dataset.win; d.score = f.querySelector(".score").value; renderPlayed(); });
+  f.querySelector("[data-cancel]").onclick = () => { resultOpen = null; renderPlayed(); };
+  f.querySelector("[data-save]").onclick = async e => {
+    const msg = f.querySelector("[data-msg]");
+    if (!d.t1.length || !d.t2.length) return msg.textContent = "Vyber hráče do obou týmů.";
+    if (d.t1.length !== d.t2.length) return msg.textContent = "Týmy musí mít stejně hráčů.";
+    if (!d.win) return msg.textContent = "Vyber, kdo vyhrál.";
+    e.target.disabled = true;
+    const winners = d.win === 1 ? d.t1 : d.t2, losers = d.win === 1 ? d.t2 : d.t1;
+    const names = allNames(), upd = {winners, losers, score: f.querySelector(".score").value.trim()};
+    for (const id of [...winners, ...losers]) if (!(m.names || {})[id]) upd[`names.${id}`] = names[id] || id;
+    try { await api.updateMatch(m.id, upd); resultOpen = null; }
+    catch(err){ e.target.disabled = false; msg.textContent = "Uložení selhalo: " + err.message; }
+  };
+}
+
+// ---------------------------------------------------------------- žebříček
+function renderBoard(){
+  const names = allNames(), st = {};
+  for (const m of matches) if (m.winners && m.losers){
+    for (const id of m.winners){ const s = st[id] ||= {id, pts: 0, w: 0, l: 0}; s.pts += 3; s.w++; }
+    for (const id of m.losers){ const s = st[id] ||= {id, pts: 0, w: 0, l: 0}; s.l++; }
+  }
+  const rows = Object.values(st).sort((a,b) => b.pts - a.pts || (b.w/(b.w+b.l)) - (a.w/(a.w+a.l)) || (b.w+b.l) - (a.w+a.l) || (names[a.id]||"").localeCompare(names[b.id]||"", "cs"));
+  if (!rows.length){ $("board").innerHTML = `<p class="empty">Zatím žádný zapsaný výsledek. Po prvním zápase se tu objeví pořadí.</p>`; return; }
+  let h = `<table class="board"><thead><tr><th></th><th>Hráč</th><th>Zápasy</th><th>V–P</th><th>Body</th></tr></thead><tbody>`;
+  let rank = 0, prev = null;
+  rows.forEach((r, i) => {
+    if (r.pts !== prev){ rank = i + 1; prev = r.pts; }
+    h += `<tr class="${r.id === me.id ? "you" : ""}"><td class="rank">${rank}.</td><td class="n">${esc(names[r.id] || r.id)}</td><td>${r.w + r.l}</td><td>${r.w}–${r.l}</td><td class="pts">${r.pts}</td></tr>`;
+  });
+  $("board").innerHTML = h + `</tbody></table>`;
+}
+
+async function shareMatch(m){
+  const missing = 4 - m.players.length;
+  const url = location.origin + location.pathname + "#m-" + m.id;
+  const text = `🎾 Padel ${dateTitle(m.date).toLowerCase()} ${fmt(m.start)}–${fmt(m.start + m.dur)}`
+    + (m.venue ? ` · ${m.venueName}` : "")
+    + (missing > 0 ? ` · ${missing === 1 ? "chybí 1 hráč" : `chybí ${missing} hráči`}, přidej se:` : " · plno");
+  try{
+    if (navigator.share){ await navigator.share({text, url}); return; }
+    await navigator.clipboard.writeText(`${text} ${url}`);
+    $("share-status").textContent = "Odkaz je zkopírovaný, vlož ho do skupiny.";
+    setTimeout(() => $("share-status").textContent = "", 3000);
+  } catch(e){ if (e.name !== "AbortError") $("share-status").textContent = `${text} ${url}`; }
+}
+
+let flashed = false;
+function highlightFromHash(){
+  if (flashed || !location.hash.startsWith("#m-")) return;
+  const el = document.getElementById(location.hash.slice(1));
+  if (!el) return;
+  flashed = true;
+  el.scrollIntoView({block: "center"});
+  el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 2500);
+}
+
+// ---------------------------------------------------------------- nový zápas
+function fillNewForm(){
+  $("nf-date").innerHTML = DAYS.map(d => `<option value="${d}">${dateTitle(d)}</option>`).join("");
+  $("nf-date").value = day;
+  let st = ""; for (let i=0;i<=N-3;i++) st += `<option value="${slotMin(i)}">${fmt(slotMin(i))}</option>`;
+  $("nf-start").innerHTML = st; $("nf-start").value = String(18*60);
+  $("nf-venue").innerHTML = `<option value="">Ještě nevím</option>` + venueList().map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join("");
+  newHint();
+}
+function newHint(){
+  const date = $("nf-date").value, start = +$("nf-start").value, dur = +$("nf-dur").value, vid = $("nf-venue").value;
+  const past = isPast(date, idxOf(start));
+  $("nf-create").disabled = past;
+  if (past){ $("nf-hint").textContent = "Tenhle čas už je pryč."; return; }
+  const fr = freeSummary(date, start, dur);
+  if (!courts){ $("nf-hint").textContent = ""; return; }
+  if (vid){
+    const here = fr.find(f => f.venue.id === vid);
+    $("nf-hint").textContent = here ? `Volné kurty: ${here.courts.map(c => c.name).join(", ")}. Nezapomeň ho pak zarezervovat.` : "Tam teď na tenhle čas volno není, ale zápas založit můžeš.";
+  } else {
+    $("nf-hint").textContent = fr.length ? `Teď volno: ${fr.map(f => `${f.venue.name} (${f.n})`).join(", ")}` : "Na tenhle čas teď není volno nikde.";
+  }
+}
+["nf-date","nf-start","nf-dur","nf-venue"].forEach(id => $(id).onchange = newHint);
+$("new-open").onclick = () => { const f = $("new-form"); f.hidden = !f.hidden; if (!f.hidden){ fillNewForm(); $("nf-date").focus(); } };
+$("nf-cancel").onclick = () => { $("new-form").hidden = true; };
+$("nf-create").onclick = async () => {
+  const b = $("nf-create"); b.disabled = true;
+  const v = venueList().find(x => x.id === $("nf-venue").value);
+  try{
+    await api.addMatch({
+      date: $("nf-date").value, start: +$("nf-start").value, dur: +$("nf-dur").value,
+      venue: v ? v.id : "", venueName: v ? v.name : "", url: v ? v.url : "",
+      players: [me.id], names: {[me.id]: me.name}, invited: [],
+      booked: null, created: Date.now(), by: me.id,
+    });
+    $("new-form").hidden = true;
+  } catch(e){ showError("Zápas se nepodařilo založit: " + e.message); }
+  b.disabled = false;
+};
 
 // ---------------------------------------------------------------- start
 async function loadCourts(){
@@ -573,7 +827,7 @@ async function loadCourts(){
     if (first){ first = false; if (me) showApp(); else { $("pick-name").hidden = false; renderNamePicker(); } return; }
     if (me && !$("app").hidden && painting === null) render(); else if (!$("pick-name").hidden) renderNamePicker();
   });
-  api.watchMatches(DAYS[0], rows => { matches = rows; if (me && !$("app").hidden) { renderDays(); renderMatches(); } });
+  api.watchMatches("2000-01-01", rows => { matches = rows; if (me && !$("app").hidden) { renderDays(); renderMatches(); renderPlayed(); renderBoard(); } });
   setInterval(async () => { await loadCourts(); if (me && !$("app").hidden) renderOptions(); }, 5*60*1000);
 })();
 </script>
