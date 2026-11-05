@@ -1,12 +1,12 @@
 // Společné výpočty pro žebříček, profil hráče a návrh týmů.
 //
-// ELO: každý začíná na 100. Síla týmu = průměr ELO hráčů. Vítězové dostanou
+// ELO: každý začíná na 1000. Síla týmu = průměr ELO hráčů. Vítězové dostanou
 // K × (1 − očekávaná šance na výhru), poražení ztratí 75 % této částky.
 // Proti stejně silným je to +100 / −75, nad silnějšími víc, nad slabšími méně.
 // Protože se za prohru bere o něco méně, ELO s hraním postupně roste a vyšší
 // úrovně jsou dosažitelné. ELO nespadne pod 0.
 
-export const ELO_START = 100;
+export const ELO_START = 1000;
 export const ELO_K = 200;          // výhra nad stejně silnými = K/2 = +100
 export const ELO_LOSS = 0.75;      // prohra = 75 % toho, co by získal vítěz
 export const ELO_SCALE = 2000;     // jak moc rozdíl ELO mění šanci (vyšší = pozvolněji)
