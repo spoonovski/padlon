@@ -172,6 +172,13 @@ table.who{border-collapse:separate;border-spacing:2px;font-variation-settings:"w
 .chat-log .empty{font-size:13px;color:var(--muted);margin:0}
 .chat-form{display:flex;gap:6px}
 .chat-form input{flex:1;min-width:0}
+.fullrow:empty{display:none}
+.fullrow{margin:8px 0 0}
+.full-tg[aria-pressed="true"]{background:var(--ball-3) !important;color:var(--ball-ink) !important}
+.full-tg[aria-pressed="true"] .knob{background:var(--ball-ink) !important}
+.full-tg[aria-pressed="true"] .knob::after{background:var(--ball-3) !important}
+.full-tg:disabled{opacity:1}
+.full-tag{display:inline-block;background:var(--ball-3);color:var(--ball-ink);font-weight:800;font-style:italic;text-transform:uppercase;font-size:13px;padding:4px 12px;letter-spacing:.04em}
 /* přepínače Chat / Pozice */
 .tg{display:inline-flex;align-items:center;gap:8px}
 .tg .knob{width:30px;height:18px;border-radius:999px;background:rgba(255,255,255,.18);position:relative;flex:none}
@@ -654,7 +661,7 @@ function renderMatches(){
   let h = "", lastDate = null;
   for (const m of list){
     if (m.date !== lastDate){ h += `<h3 class="date-head">${dateTitle(m.date)}</h3>`; lastDate = m.date; }
-    const inIt = m.players.includes(me.id), full = m.players.length >= 4, missing = 4 - m.players.length;
+    const inIt = m.players.includes(me.id), closed = !!m.closed && m.players.length < 4, full = m.players.length >= 4 || closed, missing = closed ? 0 : 4 - m.players.length;
     const seats = [...m.players.map(id => plink(id, esc(m.names[id] || id), `seat ${id === me.id ? "you" : ""}`)),
       ...[...Array(Math.max(0, missing))].map(() => `<span class="seat free">volno</span>`)].join("");
     const invited = (m.invited || []).filter(p => !m.players.includes(p.id));
@@ -670,9 +677,12 @@ function renderMatches(){
     }
     h += `<div class="match" id="m-${m.id}" data-id="${m.id}">
       <div class="opt-head"><span class="opt-time">${fmt(m.start)}–${fmt(m.start + m.dur)}</span>${where}</div>
+      <div class="fullrow">${inIt
+        ? `<button class="btn ghost small tg full-tg" data-closed type="button" aria-pressed="${!!m.closed || m.players.length >= 4}" ${m.players.length >= 4 ? "disabled" : ""}><span class="knob" aria-hidden="true"></span>Plno</button>`
+        : full ? `<span class="full-tag">Plno</span>` : ""}</div>
       <div class="slots4">${seats}</div>
       ${planHidden.has(m.id) ? "" : courtPlan(m)}
-      ${!full ? `<p class="note" style="margin:0 0 6px">${missing === 1 ? "Chybí 1 hráč" : `Chybí ${missing} hráči`}</p>` : teamsFromPos(m) ? "" : fairTeams(m)}
+      ${closed ? `<p class="note" style="margin:0 0 6px">Uzavřeno, hrajeme v ${m.players.length}.</p>` : !full ? `<p class="note" style="margin:0 0 6px">${missing === 1 ? "Chybí 1 hráč" : `Chybí ${missing} hráči`}</p>` : teamsFromPos(m) ? "" : fairTeams(m)}
       ${invited.length ? `<p class="note" style="margin:0 0 6px">Můžou: ${invited.map(p => esc(p.name)).join(", ")}</p>` : ""}
       ${freeLine ? `<p class="note" style="margin:0 0 8px">${freeLine}</p>` : ""}
       ${m.booked ? `<p class="booked" style="margin:0 0 8px">✓ Zarezervoval(a) ${plink(m.booked, esc(m.names[m.booked] || "někdo"))}</p>` : ""}
@@ -708,6 +718,7 @@ function renderMatches(){
     act("[data-unbook]", () => api.updateMatch(m.id, {booked: null, qr: null, price: null, paid: []}));
     wirePay(el, m);
     wirePlan(el, m);
+    act("[data-closed]", () => api.updateMatch(m.id, {closed: !m.closed}));
     el.querySelector("[data-plan]").onclick = () => {
       planShown.has(m.id) ? planShown.delete(m.id) : planShown.add(m.id); savePlanShown(); renderMatches();
     };
@@ -749,7 +760,7 @@ function teamsFromPos(m){
   return null;
 }
 function courtPlan(m){
-  const at = posMap(m), inIt = m.players.includes(me.id), full = m.players.length >= 4;
+  const at = posMap(m), inIt = m.players.includes(me.id), full = m.players.length >= 4 || !!m.closed;
   const spot = k => {
     const id = at[k];
     if (id){
@@ -776,7 +787,7 @@ function wirePlan(el, m){
       else if (!at[k]){
         const upd = {[`pos.${me.id}`]: k};
         if (!m.players.includes(me.id)){
-          if (m.players.length >= 4) return;
+          if (m.players.length >= 4 || m.closed) return;
           upd.players = [...m.players, me.id]; upd[`names.${me.id}`] = me.name;
         }
         await api.updateMatch(m.id, upd);
@@ -1075,7 +1086,7 @@ function fairTeams(m){
 }
 
 async function shareMatch(m){
-  const missing = 4 - m.players.length;
+  const missing = m.closed ? 0 : 4 - m.players.length;
   const url = location.origin + location.pathname + "#m-" + m.id;
   const text = `🎾 Padel ${dateTitle(m.date).toLowerCase()} ${fmt(m.start)}–${fmt(m.start + m.dur)}`
     + (m.venue ? ` · ${m.venueName}` : "")

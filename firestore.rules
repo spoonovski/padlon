@@ -38,7 +38,7 @@ service cloud.firestore {
     function validMatch(d) {
       return d.keys().hasOnly(['date', 'start', 'dur', 'venue', 'venueName', 'url',
                'players', 'names', 'invited', 'booked', 'created', 'by', 'winners', 'losers', 'score',
-               'price', 'priceMode', 'qr', 'paid', 'pos', 'chatN'])
+               'price', 'priceMode', 'qr', 'paid', 'pos', 'chatN', 'closed'])
         && (!('winners' in d) || (d.winners is list && d.winners.size() <= 2))
         && (!('losers' in d) || (d.losers is list && d.losers.size() <= 2))
         && (!('score' in d) || shortStr(d.score, 30))
@@ -50,7 +50,8 @@ service cloud.firestore {
         && (d.get('price', null) == null || (d.price is number && d.price <= 100000))
         && (d.get('paid', []) is list && d.get('paid', []).size() <= 4)
         && (d.get('pos', {}) is map && d.get('pos', {}).size() <= 12)
-        && (d.get('chatN', 0) is int);
+        && (d.get('chatN', 0) is int)
+        && (d.get('closed', false) is bool);
     }
     match /matches/{id} {
       allow read: if signedIn();
