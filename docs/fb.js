@@ -2,7 +2,10 @@
 // window.__MOCK_DB__ slouží k testování bez Firebase.
 export const slug = s => s.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") || "hrac";
 
-export async function connect(showError = console.error){
+let _conn = null;
+export function connect(showError = console.error){ return _conn ||= _connect(showError); }
+
+async function _connect(showError){
   if (window.__MOCK_DB__) return window.__MOCK_DB__;
   let cfg = null;
   try { cfg = (await import("./firebase-config.js?v=" + Date.now())).firebaseConfig; } catch(e){}

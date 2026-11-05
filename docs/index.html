@@ -150,6 +150,10 @@ footer{color:var(--muted);font-size:13px;margin-top:28px}
 .tabs{display:inline-flex;background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:3px;margin-bottom:18px}
 .tabs a{padding:7px 16px;border-radius:999px;text-decoration:none;color:var(--ink);font-weight:650;font-size:15px}
 .tabs a[aria-current="page"]{background:var(--ink);color:var(--glass)}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:18px}
+.topbar .tabs{margin-bottom:0}
+@media (max-width:400px){ .tabs a{padding:7px 12px;font-size:14px} .acct-btn.out{padding:7px 12px !important;font-size:14px !important} }
+
 
 /* personal mode */
 .mode-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-4px 0 14px}
@@ -209,11 +213,14 @@ body:not(.work) .work-only{display:none}
 </head>
 <body>
 <div class="wrap">
+  <div class="topbar">
   <nav class="tabs" aria-label="Sekce">
-    <a href="./" aria-current="page">Kurty</a>
-    <a href="match.html">Zápasy</a>
-    <a href="leaderboard.html">Žebříček</a>
-  </nav>
+      <a href="./" aria-current="page">Kurty</a>
+      <a href="match.html">Zápasy</a>
+      <a href="leaderboard.html">Žebříček</a>
+    </nav>
+    <div id="account" class="acct"></div>
+  </div>
   <header class="top">
     <h1>Volné<br>kurty</h1>
     <div class="top-right">
@@ -252,7 +259,8 @@ body:not(.work) .work-only{display:none}
 
   <section class="prefs" id="prefs-login" hidden>
     <h2>Personal mode potřebuje přihlášení</h2>
-    <p style="margin:0">Každý si nastaví, kdy se mu hraní hodí, a uloží se mu to k účtu. Přihlas se nebo zaregistruj v záložce <a href="match.html" style="color:var(--turf-3)">Zápasy</a> a vrať se sem.</p>
+    <p>Každý si nastaví, kdy se mu hraní hodí, a uloží se mu to k účtu.</p>
+    <button class="btn" type="button" onclick="window.padelOpenLogin && window.padelOpenLogin(false)">Přihlásit nebo registrovat</button>
   </section>
 
   <section class="prefs" id="prefs" hidden>
@@ -566,14 +574,14 @@ async function waitForData(since){
 async function triggerCheck(){
   // Sdílené spouštění přes Cloudflare Worker: stačí být přihlášený hráč.
   if (window.padelRefreshUrl){
-    if (!window.padelIdToken){ setStatus("Kontrolu spustí přihlášený hráč. Přihlas se v záložce Zápasy.", true); return; }
+    if (!window.padelIdToken){ setStatus("Kontrolu spustí přihlášený hráč. Přihlas se vpravo nahoře.", true); window.padelOpenLogin && window.padelOpenLogin(false); return; }
     setBusy(true); setStatus("Spouštím kontrolu…");
     let r, j = {};
     try{
       r = await fetch(window.padelRefreshUrl, {method: "POST", headers: {"Authorization": "Bearer " + await window.padelIdToken()}});
       j = await r.json().catch(() => ({}));
     } catch(e){ setBusy(false); setStatus("Spouštěč teď neodpovídá. Zkus to za chvíli.", true); return; }
-    if (r.status === 401){ setBusy(false); setStatus("Přihlášení vypršelo. Přihlas se znovu v záložce Zápasy.", true); return; }
+    if (r.status === 401){ setBusy(false); setStatus("Přihlášení vypršelo. Přihlas se znovu vpravo nahoře.", true); return; }
     if (!r.ok){ setBusy(false); setStatus(`Kontrolu se nepodařilo spustit (${j.status || r.status}).`, true); return; }
     setStatus(j.already ? "Kontrola už běží, nová data dorazí za chvíli." : "Kontrola běží, nová data dorazí zhruba za 1–2 minuty.");
     return waitForData(j.started ? Date.parse(j.started) : Date.now());
@@ -618,10 +626,12 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) load
 // Personal mode: přihlášení a uložené časy hráče
 (async () => {
   try {
-    const app = await import("./app-config.js?v=" + Date.now()).catch(() => ({}));
+    const V = window.__padelV ||= Date.now();
+    const app = await import("./app-config.js?v=" + V).catch(() => ({}));
     if (app.REFRESH_URL) window.padelRefreshUrl = app.REFRESH_URL;
-    const api = await (await import("./fb.js?v=" + Date.now())).connect(() => {});
+    const api = await (await import("./fb.js?v=" + V)).connect(() => {});
     if (!api){ window.padelAuth(false); return; }
+    (await import("./account.js?v=" + V)).mountAccount(api, document.getElementById("account"));
     api.onAuth(async u => {
       window.padelIdToken = u ? () => api.getIdToken() : null;
       if (!u){ window.padelAuth(false); return; }

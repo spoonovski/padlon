@@ -44,6 +44,10 @@ button,input,select{font:inherit;color:inherit}
 .tabs{display:inline-flex;background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:3px;margin-bottom:18px}
 .tabs a{padding:7px 16px;border-radius:999px;text-decoration:none;color:var(--ink);font-weight:650;font-size:15px}
 .tabs a[aria-current="page"]{background:var(--ink);color:var(--glass)}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:18px}
+.topbar .tabs{margin-bottom:0}
+@media (max-width:400px){ .tabs a{padding:7px 12px;font-size:14px} .acct-btn.out{padding:7px 12px !important;font-size:14px !important} }
+
 
 header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:18px}
 h1{margin:0;font-weight:800;font-size:clamp(34px,8vw,56px);line-height:.92;letter-spacing:-.01em;font-variation-settings:"wdth" 125}
@@ -171,18 +175,17 @@ table.board{width:100%;border-collapse:collapse;font-size:15px}
 </head>
 <body>
 <div class="wrap">
+  <div class="topbar">
   <nav class="tabs" aria-label="Sekce">
-    <a href="./">Kurty</a>
-    <a href="match.html" aria-current="page">Zápasy</a>
-    <a href="leaderboard.html">Žebříček</a>
-  </nav>
+      <a href="./">Kurty</a>
+      <a href="match.html" aria-current="page">Zápasy</a>
+      <a href="leaderboard.html">Žebříček</a>
+    </nav>
+    <div id="account" class="acct"></div>
+  </div>
 
   <header class="top">
     <h1>Kdo<br>hraje?</h1>
-    <div class="me" id="me" hidden>
-      <span>Hraješ jako</span><b id="me-name"></b>
-      <span class="me-links"><button class="linkbtn" id="logout" type="button">Odhlásit</button> · <button class="linkbtn" id="delete-open" type="button">Smazat účet</button></span>
-    </div>
   </header>
 
   <section class="card setup" id="setup" hidden>
@@ -191,28 +194,13 @@ table.board{width:100%;border-collapse:collapse;font-size:15px}
   </section>
   <p class="err" id="error" role="alert" hidden></p>
 
-  <section class="card" id="delete-panel" hidden>
-    <h2>Smazat účet</h2>
-    <p class="sub">Smaže se tvoje volno a odhlásíš se ze všech budoucích zápasů. Odehrané zápasy zůstanou ostatním, ty zmizíš ze žebříčku. Nejde to vrátit.</p>
-    <div class="form">
-      <label>Pro potvrzení zadej heslo<input id="delete-pass" type="password" autocomplete="current-password" class="score"></label>
-      <p class="note err" id="delete-msg" style="margin:0"></p>
-      <div class="actions"><button class="btn small" id="delete-confirm" type="button" style="background:var(--warn)">Smazat natrvalo</button><button class="btn ghost small" id="delete-cancel" type="button">Zrušit</button></div>
-    </div>
-  </section>
-
   <section class="card" id="auth" hidden>
-    <h2 id="auth-title">Přihlas se</h2>
-    <p class="sub" id="auth-sub">Jménem a heslem, které sis zvolil při registraci.</p>
-    <form class="form" id="auth-form" novalidate>
-      <label>Jméno<input id="auth-name" class="score" maxlength="24" autocomplete="username" autocapitalize="words" required></label>
-      <label>Heslo<input id="auth-pass" class="score" type="password" autocomplete="current-password" required></label>
-      <p class="note err" id="auth-msg" style="margin:0"></p>
-      <div class="actions">
-        <button class="btn" id="auth-submit" type="submit">Přihlásit</button>
-        <button class="linkbtn" id="auth-toggle" type="button">Nový hráč? Zaregistruj se</button>
-      </div>
-    </form>
+    <h2>Přihlas se</h2>
+    <p class="sub">Zápasy a volno party vidí jen přihlášení hráči. Přihlásit se nebo zaregistrovat můžeš i vpravo nahoře.</p>
+    <div class="actions">
+      <button class="btn" id="auth-login" type="button">Přihlásit</button>
+      <button class="btn ghost" id="auth-signup" type="button">Jsem nový, registrovat</button>
+    </div>
   </section>
 
   <div id="app" hidden>
@@ -281,9 +269,12 @@ table.board{width:100%;border-collapse:collapse;font-size:15px}
 // Firebase se načítá jen když je v firebase-config.js vyplněný config.
 // window.__MOCK_DB__ slouží k testování bez Firebase.
 let api = null;
+const V = window.__padelV ||= Date.now();   // jedna verze modulů na načtení stránky
 async function connect(){
-  const m = await import("./fb.js?v=" + Date.now());
-  return m.connect(showError);
+  const m = await import("./fb.js?v=" + V);
+  const conn = await m.connect(showError);
+  if (conn) (await import("./account.js?v=" + V)).mountAccount(conn, $("account"));
+  return conn;
 }
 
 // ---------------------------------------------------------------- helpers
@@ -320,76 +311,21 @@ const players = () => (roster || []).map(p => ({id: p.id, name: p.name})).sort((
 const slotsOf = (player, ymd) => (avail.find(a => a.player === player && a.date === ymd) || {}).slots || "0".repeat(N);
 
 // ---------------------------------------------------------------- přihlášení
-let signup = false;
-function authMode(isSignup){
-  signup = isSignup;
-  $("auth-title").textContent = signup ? "Nový hráč" : "Přihlas se";
-  $("auth-sub").textContent = signup ? "Zvol si jméno, pod kterým tě uvidí ostatní, a heslo (aspoň 6 znaků). Stejným jménem a heslem se pak přihlásíš i na mobilu." : "Jménem a heslem, které sis zvolil při registraci.";
-  $("auth-submit").textContent = signup ? "Zaregistrovat" : "Přihlásit";
-  $("auth-toggle").textContent = signup ? "Už máš účet? Přihlas se" : "Nový hráč? Zaregistruj se";
-  $("auth-pass").autocomplete = signup ? "new-password" : "current-password";
-  $("auth-msg").textContent = "";
-}
-$("auth-toggle").onclick = () => authMode(!signup);
-const AUTH_ERR = {
-  "auth/email-already-in-use": "Tohle jméno už někdo má. Zvol jiné, nebo se přihlas.",
-  "auth/weak-password": "Heslo musí mít aspoň 6 znaků.",
-  "auth/invalid-credential": "Špatné jméno nebo heslo.",
-  "auth/wrong-password": "Špatné heslo.",
-  "auth/user-not-found": "Hráč s tímhle jménem neexistuje. Nejsi nový? Zaregistruj se.",
-  "auth/too-many-requests": "Moc pokusů. Zkus to za pár minut.",
-  "auth/operation-not-allowed": "Přihlašování heslem není ve Firebase zapnuté.",
-  "auth/network-request-failed": "Chybí připojení k internetu.",
-};
-const authErr = e => AUTH_ERR[e.code] || `Nepovedlo se (${e.code || e.message}).`;
-$("auth-form").onsubmit = async e => {
-  e.preventDefault();
-  const name = $("auth-name").value.trim().replace(/\s+/g, " "), pass = $("auth-pass").value;
-  if (!name || !slug(name).replace(/-/g, "")) return $("auth-msg").textContent = "Zadej jméno.";
-  if (signup && pass.length < 6) return $("auth-msg").textContent = "Heslo musí mít aspoň 6 znaků.";
-  if (!pass) return $("auth-msg").textContent = "Zadej heslo.";
-  $("auth-submit").disabled = true; $("auth-msg").textContent = "";
-  try {
-    pendingName = name;
-    if (signup) await api.signUp(name, pass); else await api.signIn(name, pass);
-    $("auth-pass").value = "";
-  } catch(err){ $("auth-msg").textContent = authErr(err); }
-  $("auth-submit").disabled = false;
-};
-let pendingName = null;
+// Přihlášení, registrace, odhlášení a smazání účtu řeší společné tlačítko vpravo nahoře (account.js).
+$("auth-login").onclick = () => window.padelOpenLogin && window.padelOpenLogin(false);
+$("auth-signup").onclick = () => window.padelOpenLogin && window.padelOpenLogin(true);
 
 async function onUser(u){
-  if (!u){
-    me = null; $("app").hidden = true; $("me").hidden = true; $("delete-panel").hidden = true;
-    $("auth").hidden = false; authMode(false); return;
-  }
+  if (!u){ me = null; $("app").hidden = true; $("auth").hidden = false; return; }
+  // profil se po registraci může zapsat o chvilku později, jméno pak doplní watchPlayers
   let p = (roster || []).find(x => x.id === u.uid) || await api.getPlayer(u.uid).catch(() => null);
-  if (!p){ // účet bez profilu (např. přerušená registrace) – doplníme ho
-    const name = pendingName || "Hráč";
-    await api.setPlayer(u.uid, {name, created: Date.now()}).catch(() => {});
-    p = {name};
-  }
-  me = {id: u.uid, name: p.name};
+  me = {id: u.uid, name: (p && p.name) || "…"};
   $("auth").hidden = true;
   showApp();
 }
-$("logout").onclick = () => api.signOut();
-$("delete-open").onclick = () => { $("delete-panel").hidden = false; $("delete-msg").textContent = ""; $("delete-pass").value = ""; $("delete-pass").focus(); $("delete-panel").scrollIntoView({block: "center"}); };
-$("delete-cancel").onclick = () => { $("delete-panel").hidden = true; };
-$("delete-confirm").onclick = async () => {
-  const pass = $("delete-pass").value;
-  if (!pass) return $("delete-msg").textContent = "Zadej heslo.";
-  $("delete-confirm").disabled = true; $("delete-msg").textContent = "Mažu…";
-  const nowMin = new Date().getHours()*60 + new Date().getMinutes();
-  const upcoming = matches.filter(m => m.players.includes(me.id) && !m.winners && (m.date > DAYS[0] || (m.date === DAYS[0] && m.start >= nowMin)));
-  try { await api.deleteAccount(me.name, pass, upcoming); $("delete-panel").hidden = true; }
-  catch(err){ $("delete-msg").textContent = ["auth/invalid-credential","auth/wrong-password"].includes(err.code) ? "Špatné heslo." : authErr(err); }
-  $("delete-confirm").disabled = false;
-};
 
 function showApp(){
-  $("app").hidden = false; $("me").hidden = false;
-  $("me-name").textContent = me.name;
+  $("app").hidden = false;
   render();
   if (location.hash === "#odehrane") setTimeout(() => { const c = $("played-card"); if (!c.hidden) c.scrollIntoView({block: "start"}); }, 600);
 }
@@ -893,7 +829,7 @@ async function loadCourts(){
   const startWatching = () => {
     unsubs.push(api.watchPlayers(rows => {
       roster = rows.filter(r => typeof r.name === "string");
-      if (me){ const p = roster.find(x => x.id === me.id); if (p && p.name !== me.name){ me.name = p.name; $("me-name").textContent = p.name; } }
+      if (me){ const p = roster.find(x => x.id === me.id); if (p && p.name !== me.name){ me.name = p.name; } }
       if (live() && painting === null) render();
     }));
     unsubs.push(api.watchAvailability(DAYS[0], rows => {

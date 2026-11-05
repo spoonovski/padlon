@@ -44,6 +44,10 @@ a{color:var(--turf-3)}
 .tabs{display:inline-flex;background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:3px;margin-bottom:18px}
 .tabs a{padding:7px 16px;border-radius:999px;text-decoration:none;color:var(--ink);font-weight:650;font-size:15px}
 .tabs a[aria-current="page"]{background:var(--ink);color:var(--glass)}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:18px}
+.topbar .tabs{margin-bottom:0}
+@media (max-width:400px){ .tabs a{padding:7px 12px;font-size:14px} .acct-btn.out{padding:7px 12px !important;font-size:14px !important} }
+
 
 header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:18px}
 h1{margin:0;font-weight:800;font-size:clamp(34px,8vw,56px);line-height:.92;letter-spacing:-.01em;font-variation-settings:"wdth" 125}
@@ -97,11 +101,14 @@ table.board{width:100%;border-collapse:collapse;font-size:15px}
 </head>
 <body>
 <div class="wrap">
+  <div class="topbar">
   <nav class="tabs" aria-label="Sekce">
-    <a href="./">Kurty</a>
-    <a href="match.html">Zápasy</a>
-    <a href="leaderboard.html" aria-current="page">Žebříček</a>
-  </nav>
+      <a href="./">Kurty</a>
+      <a href="match.html">Zápasy</a>
+      <a href="leaderboard.html" aria-current="page">Žebříček</a>
+    </nav>
+    <div id="account" class="acct"></div>
+  </div>
 
   <header class="top">
     <h1>Žeb&shy;říček</h1>
@@ -112,7 +119,8 @@ table.board{width:100%;border-collapse:collapse;font-size:15px}
 
   <section class="card login" id="login" hidden>
     <h2>Nejdřív se přihlas</h2>
-    <p class="sub" style="margin:0">Žebříček vidí jen hráči z party. Přihlásit nebo zaregistrovat se můžeš v záložce <a href="match.html">Zápasy</a>.</p>
+    <p class="sub">Žebříček vidí jen hráči z party.</p>
+    <button class="acct-btn out" type="button" onclick="window.padelOpenLogin && window.padelOpenLogin(false)">Přihlásit</button>
   </section>
 
   <div id="app" hidden>
@@ -230,7 +238,11 @@ document.querySelector(".seg").addEventListener("keydown", e => {
 
 (async () => {
   let api = null;
-  try { api = await (await import("./fb.js?v=" + Date.now())).connect(showError); }
+  const V = window.__padelV ||= Date.now();
+  try {
+    api = await (await import("./fb.js?v=" + V)).connect(showError);
+    if (api) (await import("./account.js?v=" + V)).mountAccount(api, $("account"));
+  }
   catch(e){ showError("Připojení k Firebase selhalo: " + e.message); }
   if (!api){ $("login").hidden = false; return; }
   let unsubs = [];
