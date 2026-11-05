@@ -392,7 +392,7 @@ $("auth-signup").onclick = () => window.padelOpenLogin && window.padelOpenLogin(
 
 async function onUser(u){
   for (const k of Object.keys(chatUnsub)){ chatUnsub[k](); delete chatUnsub[k]; }
-  chatOpen.clear(); for (const k of Object.keys(chatDraft)) delete chatDraft[k];
+  for (const k of Object.keys(chatDraft)) delete chatDraft[k];
   if (!u){ me = null; $("app").hidden = true; $("auth").hidden = false; return; }
   // profil se po registraci může zapsat o chvilku později, jméno pak doplní watchPlayers
   let p = (roster || []).find(x => x.id === u.uid) || await api.getPlayer(u.uid).catch(() => null);
@@ -718,6 +718,7 @@ function renderMatches(){
     el.querySelector("[data-ics]").onclick = e => { e.preventDefault(); downloadIcs(m); };
     el.querySelector("[data-gcal]").href = googleCalUrl(m);
   });
+  syncChatListeners(list.map(m => m.id));
   highlightFromHash();
 }
 
@@ -780,7 +781,16 @@ function wirePlan(el, m){
 // skryté půdorysy (pamatuje si prohlížeč, pro každý zápas zvlášť)
 const planHidden = new Set((() => { try { return JSON.parse(localStorage.getItem("padel-plan-hidden") || "[]"); } catch(e){ return []; } })());
 const savePlanHidden = () => { try { localStorage.setItem("padel-plan-hidden", JSON.stringify([...planHidden].slice(-50))); } catch(e){} };
-const chatOpen = new Set(), chatMsgs = {}, chatUnsub = {}, chatDraft = {};
+// chat je u zápasu otevřený, dokud si ho hráč nezavře (zavřené si pamatuje prohlížeč)
+const chatClosed = new Set((() => { try { return JSON.parse(localStorage.getItem("padel-chat-closed") || "[]"); } catch(e){ return []; } })());
+const saveChatClosed = () => { try { localStorage.setItem("padel-chat-closed", JSON.stringify([...chatClosed].slice(-50))); } catch(e){} };
+const chatOpen = {has: id => !chatClosed.has(id)};
+const chatMsgs = {}, chatUnsub = {}, chatDraft = {};
+// poslouchá chaty otevřených zápasů, zavřené a zmizelé odpojí
+function syncChatListeners(ids){
+  for (const id of ids) if (chatOpen.has(id) && !chatUnsub[id]) chatUnsub[id] = api.watchChat(id, list => { chatMsgs[id] = list; paintChat(id); });
+  for (const id of Object.keys(chatUnsub)) if (!ids.includes(id) || !chatOpen.has(id)){ chatUnsub[id](); delete chatUnsub[id]; }
+}
 const seenKey = id => `padel-chat-seen-${me ? me.id : ""}-${id}`;
 const getSeen = id => { try { return +localStorage.getItem(seenKey(id)) || 0; } catch(e){ return 0; } };
 const setSeen = (id, n) => { try { localStorage.setItem(seenKey(id), n); } catch(e){} };
@@ -811,12 +821,9 @@ function paintChat(id){
 }
 function wireChat(el, m){
   el.querySelector("[data-chat]").onclick = () => {
-    if (chatOpen.has(m.id)){ chatOpen.delete(m.id); if (chatUnsub[m.id]){ chatUnsub[m.id](); delete chatUnsub[m.id]; } }
-    else {
-      chatOpen.add(m.id);
-      chatUnsub[m.id] ||= api.watchChat(m.id, list => { chatMsgs[m.id] = list; paintChat(m.id); });
-      setSeen(m.id, m.chatN || 0);
-    }
+    if (chatOpen.has(m.id)) chatClosed.add(m.id);
+    else { chatClosed.delete(m.id); setSeen(m.id, m.chatN || 0); }
+    saveChatClosed();
     renderMatches();
     if (chatOpen.has(m.id)){ const i = document.querySelector(`#m-${CSS.escape(m.id)} .chat-form input`); if (i) i.focus(); }
   };
