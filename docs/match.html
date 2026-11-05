@@ -1062,16 +1062,17 @@ function wireResultForm(f, m){
 
 
 // ---------------------------------------------------------------- platba za kurt
-// Kdo kurt zarezervoval, zadá cenu a nahraje QR. Appka rozpočítá cenu na hráče.
+// Kdo kurt zarezervoval, zadá cenu a nahraje QR. Cena se dělí vždy na 4 místa na kurtu (ne podle přihlášených).
+const SEATS = 4;
 const kc = n => Math.round(n).toLocaleString("cs-CZ") + " Kč";
 let payOpen = null;
 function payBlock(m){
   if (!m.booked || !m.players.length) return "";
-  const names = allNames(), mine = m.booked === me.id, n = m.players.length;
+  const names = allNames(), mine = m.booked === me.id, n = SEATS;
   const paid = m.paid || [];
   const share = m.price ? Math.ceil(m.price / n) : null;
   let h = `<div class="pay">`;
-  if (m.price) h += `<div class="pay-sum"><span>Kurt <b>${kc(m.price)}</b></span><span class="pay-share">na hráče <b>${kc(share)}</b></span><span class="note">${n} ${n === 1 ? "hráč" : n < 5 ? "hráči" : "hráčů"} · ${m.dur} min</span></div>`;
+  if (m.price) h += `<div class="pay-sum"><span>Kurt <b>${kc(m.price)}</b></span><span class="pay-share">na hráče <b>${kc(share)}</b></span><span class="note">4 místa · ${m.dur} min</span></div>`;
   if (m.qr) h += `<div class="pay-qrrow"><button class="pay-qr" type="button" data-qr-open aria-label="Zvětšit QR kód"><img src="${esc(m.qr)}" alt="QR kód pro platbu" loading="lazy"></button>
     <a class="btn ghost small" data-qr-dl href="${esc(m.qr)}" download="${qrName(m)}">Stáhnout QR</a></div>`;
   if (!m.price && !m.qr) h += `<p class="note" style="margin:0 0 6px">${mine ? "Přidej cenu kurtu a QR kód, ať ti ostatní pošlou peníze." : `Čeká se na cenu a QR kód od ${esc(names[m.booked] || "rezervujícího")}.`}</p>`;
@@ -1128,7 +1129,7 @@ function wirePay(el, m){
   const run = async (b, fn) => { if (b) b.disabled = true; try { await fn(); } catch(e){ const pm = q("[data-paymsg]"); (pm || {}).textContent = e.code === "permission-denied" ? "Firebase změnu odmítla (zkontroluj pravidla)." : e.message; if (!pm) showError("Akce se nepovedla: " + e.message); } if (b) b.disabled = false; };
   const open = q("[data-qr-open]"); if (open) open.onclick = () => {
     $("qr-img").src = m.qr; $("qr-dl").href = m.qr; $("qr-dl").download = qrName(m);
-    $("qr-cap").textContent = m.price ? `Na hráče ${kc(Math.ceil(m.price / m.players.length))}` : "";
+    $("qr-cap").textContent = m.price ? `Na hráče ${kc(Math.ceil(m.price / SEATS))}` : "";
     $("qr-dlg").showModal();
   };
   const pd = q("[data-paid]"); if (pd) pd.onclick = () => run(pd, () => api.updateMatch(m.id, {paid: [...new Set([...(m.paid || []), me.id])]}));
@@ -1139,7 +1140,7 @@ function wirePay(el, m){
   if (pr){
     md.value = m.priceMode || "total";
     const total = () => { const v = +pr.value; return !v ? 0 : md.value === "hour" ? v * m.dur / 60 : v; };
-    const upd = () => { const t = total(); calc.textContent = t ? `Celkem ${kc(t)}, na hráče ${kc(Math.ceil(t / m.players.length))} (${m.players.length} ${m.players.length === 1 ? "hráč" : m.players.length < 5 ? "hráči" : "hráčů"})` : "Zadej cenu, kterou jsi za kurt zaplatil."; };
+    const upd = () => { const t = total(); calc.textContent = t ? `Celkem ${kc(t)}, na hráče ${kc(Math.ceil(t / SEATS))} (4 místa)` : "Zadej cenu, kterou jsi za kurt zaplatil."; };
     pr.oninput = upd; md.onchange = upd; upd();
     const sv = q("[data-pay-save]");
     sv.onclick = () => run(sv, async () => {
