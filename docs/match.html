@@ -173,6 +173,7 @@ table.who{border-collapse:separate;border-spacing:2px;font-variation-settings:"w
 .chat-form{display:flex;gap:6px}
 .chat-form input{flex:1;min-width:0}
 .fullrow:empty{display:none}
+.seat.held{border-style:solid !important;outline-style:solid !important;color:var(--ball-3) !important}
 .fullrow{margin:8px 0 0}
 .full-tg[aria-pressed="true"]{background:var(--ball-3) !important;color:var(--ball-ink) !important}
 .full-tg[aria-pressed="true"] .knob{background:var(--ball-ink) !important}
@@ -661,9 +662,9 @@ function renderMatches(){
   let h = "", lastDate = null;
   for (const m of list){
     if (m.date !== lastDate){ h += `<h3 class="date-head">${dateTitle(m.date)}</h3>`; lastDate = m.date; }
-    const inIt = m.players.includes(me.id), closed = !!m.closed && m.players.length < 4, full = m.players.length >= 4 || closed, missing = closed ? 0 : 4 - m.players.length;
+    const inIt = m.players.includes(me.id), closed = !!m.closed && m.players.length < 4, full = m.players.length >= 4, missing = 4 - m.players.length;
     const seats = [...m.players.map(id => plink(id, esc(m.names[id] || id), `seat ${id === me.id ? "you" : ""}`)),
-      ...[...Array(Math.max(0, missing))].map(() => `<span class="seat free">volno</span>`)].join("");
+      ...[...Array(Math.max(0, missing))].map(() => closed ? `<span class="seat free held">drženo</span>` : `<span class="seat free">volno</span>`)].join("");
     const invited = (m.invited || []).filter(p => !m.players.includes(p.id));
     let where;
     if (m.venue) where = `<a class="court" href="${m.url}" target="_blank" rel="noopener">${esc(m.venueName)}</a>`;
@@ -679,17 +680,19 @@ function renderMatches(){
       <div class="opt-head"><span class="opt-time">${fmt(m.start)}–${fmt(m.start + m.dur)}</span>${where}</div>
       <div class="fullrow">${inIt
         ? `<button class="btn ghost small tg full-tg" data-closed type="button" aria-pressed="${!!m.closed || m.players.length >= 4}" ${m.players.length >= 4 ? "disabled" : ""}><span class="knob" aria-hidden="true"></span>Plno</button>`
-        : full ? `<span class="full-tag">Plno</span>` : ""}</div>
+        : full || closed ? `<span class="full-tag">Plno</span>` : ""}</div>
       <div class="slots4">${seats}</div>
       ${planHidden.has(m.id) ? "" : courtPlan(m)}
-      ${closed ? `<p class="note" style="margin:0 0 6px">Uzavřeno, hrajeme v ${m.players.length}.</p>` : !full ? `<p class="note" style="margin:0 0 6px">${missing === 1 ? "Chybí 1 hráč" : `Chybí ${missing} hráči`}</p>` : teamsFromPos(m) ? "" : fairTeams(m)}
+      ${closed ? `<p class="note" style="margin:0 0 6px">Plno. ${missing === 1 ? "Volné místo je domluvené" : "Volná místa jsou domluvená"}, nepřidávej se, pokud nejsi ${missing === 1 ? "ten domluvený" : "mezi domluvenými"}.</p>` : !full ? `<p class="note" style="margin:0 0 6px">${missing === 1 ? "Chybí 1 hráč" : `Chybí ${missing} hráči`}</p>` : teamsFromPos(m) ? "" : fairTeams(m)}
       ${invited.length ? `<p class="note" style="margin:0 0 6px">Můžou: ${invited.map(p => esc(p.name)).join(", ")}</p>` : ""}
       ${freeLine ? `<p class="note" style="margin:0 0 8px">${freeLine}</p>` : ""}
       ${m.booked ? `<p class="booked" style="margin:0 0 8px">✓ Zarezervoval(a) ${plink(m.booked, esc(m.names[m.booked] || "někdo"))}</p>` : ""}
       ${payBlock(m)}
       <div class="actions">
         ${inIt ? `<button class="btn ghost small" data-leave type="button">Nejdu</button>`
-               : `<button class="btn small" data-join type="button" ${full ? "disabled" : ""}>${full ? "Plno" : "Přidat se"}</button>`}
+               : full ? `<button class="btn small" data-join type="button" disabled>Plno</button>`
+               : closed ? `<button class="btn ghost small" data-join type="button">Jsem domluvený, přidat se</button>`
+               : `<button class="btn small" data-join type="button">Přidat se</button>`}
         ${inIt && !m.venue && courts ? `<select class="inline-select" data-venue aria-label="Kde hrajeme"><option value="">Vybrat místo…</option>${venueList().map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join("")}</select>` : ""}
         ${inIt && m.venue && !m.booked ? `<button class="btn ball small" data-book type="button">Zarezervoval jsem</button>` : ""}
         ${m.booked === me.id ? `<button class="btn ghost small" data-unbook type="button">Zrušit rezervaci</button>` : ""}
@@ -760,7 +763,7 @@ function teamsFromPos(m){
   return null;
 }
 function courtPlan(m){
-  const at = posMap(m), inIt = m.players.includes(me.id), full = m.players.length >= 4 || !!m.closed;
+  const at = posMap(m), inIt = m.players.includes(me.id), full = m.players.length >= 4;
   const spot = k => {
     const id = at[k];
     if (id){
@@ -787,7 +790,7 @@ function wirePlan(el, m){
       else if (!at[k]){
         const upd = {[`pos.${me.id}`]: k};
         if (!m.players.includes(me.id)){
-          if (m.players.length >= 4 || m.closed) return;
+          if (m.players.length >= 4) return;
           upd.players = [...m.players, me.id]; upd[`names.${me.id}`] = me.name;
         }
         await api.updateMatch(m.id, upd);
@@ -1086,11 +1089,11 @@ function fairTeams(m){
 }
 
 async function shareMatch(m){
-  const missing = m.closed ? 0 : 4 - m.players.length;
+  const missing = 4 - m.players.length;
   const url = location.origin + location.pathname + "#m-" + m.id;
   const text = `🎾 Padel ${dateTitle(m.date).toLowerCase()} ${fmt(m.start)}–${fmt(m.start + m.dur)}`
     + (m.venue ? ` · ${m.venueName}` : "")
-    + (missing > 0 ? ` · ${missing === 1 ? "chybí 1 hráč" : `chybí ${missing} hráči`}, přidej se:` : " · plno");
+    + (missing > 0 && !m.closed ? ` · ${missing === 1 ? "chybí 1 hráč" : `chybí ${missing} hráči`}, přidej se:` : " · plno");
   try{
     if (navigator.share){ await navigator.share({text, url}); return; }
     await navigator.clipboard.writeText(`${text} ${url}`);
