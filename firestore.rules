@@ -8,11 +8,14 @@ service cloud.firestore {
     function isPlayer() { return signedIn() && request.auth.token.firebase.sign_in_provider == 'password'; }
     function shortStr(v, n) { return v is string && v.size() <= n; }
 
-    // Profil hráče: {name, created, prefs}, mění ho jen on sám
+    // Profil hráče: {name, created, prefs, photo}, mění ho jen on sám
     match /players/{uid} {
       allow read: if signedIn();
       allow create, update: if isPlayer() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['name', 'created', 'prefs'])
+        && request.resource.data.keys().hasOnly(['name', 'created', 'prefs', 'photo'])
+        && (!('photo' in request.resource.data) || request.resource.data.photo == null
+            || (request.resource.data.photo is string && request.resource.data.photo.size() < 200000
+                && request.resource.data.photo.matches('^data:image/jpeg;base64,.*')))
         && shortStr(request.resource.data.name, 24) && request.resource.data.name.size() > 0
         && (!('prefs' in request.resource.data) || (request.resource.data.prefs is map && request.resource.data.prefs.size() <= 7));
       allow delete: if isPlayer() && request.auth.uid == uid;

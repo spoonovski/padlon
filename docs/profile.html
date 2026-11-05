@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Profil hráče</title>
+<meta name="theme-color" content="#eef3f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1c2e" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Padel">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --glass:#eef3f7; --paper:#ffffff; --ink:#142235; --muted:#5d6b7e; --line:#d6dee8; --busy:#e3e8ef;
+  --turf-1:#cfe0f3; --turf-2:#8fb5e2; --turf-3:#2f6fc0;
+  --ball-2:#eef8a8; --ball-3:#d6f03a; --ball-ink:#1d2a05; --warn:#b4471f;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --glass:#0f1c2e; --paper:#16263b; --ink:#e8eef6; --muted:#93a3b8; --line:#26384f;
+    --busy:#1c2d44; --turf-1:#1f3a5e; --turf-2:#2b5c94; --turf-3:#4b8ee0;
+    --ball-2:#5d6a1c; --ball-3:#d6f03a; --warn:#f08a5d;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--glass);color:var(--ink);
+  font-family:Archivo, system-ui, sans-serif;font-size:16px;line-height:1.45;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--turf-3);outline-offset:2px}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 72px}
+[hidden]{display:none !important}
+a{color:var(--turf-3)}
+
+.tabs{display:inline-flex;background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:3px;margin-bottom:18px}
+.tabs a{padding:7px 16px;border-radius:999px;text-decoration:none;color:var(--ink);font-weight:650;font-size:15px}
+.tabs a[aria-current="page"]{background:var(--ink);color:var(--glass)}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:18px}
+.topbar .tabs{margin-bottom:0}
+@media (max-width:400px){ .tabs a{padding:7px 12px;font-size:14px} .acct-btn.out{padding:7px 12px !important;font-size:14px !important} }
+
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:18px}
+.card h2{margin:0 0 10px;font-size:19px;font-weight:700;font-variation-settings:"wdth" 110}
+.empty{color:var(--muted);margin:0}
+.err{color:var(--warn)}
+.note{color:var(--muted);font-size:14px;margin:0}
+
+/* hlavička profilu */
+.hero{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;margin:6px 0 20px}
+.hero .ph{position:relative}
+.hero h1{margin:0;font-weight:800;font-size:clamp(32px,8vw,48px);line-height:1;letter-spacing:-.01em;font-variation-settings:"wdth" 120;overflow-wrap:anywhere}
+.hero .elo{margin-top:6px;font-size:15px;color:var(--muted)}
+.hero .elo b{color:var(--ink);font-size:20px;font-variation-settings:"wdth" 110}
+.photo-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+.btn{border:0;border-radius:10px;padding:8px 13px;font-weight:650;cursor:pointer;background:var(--ink);color:var(--glass);font-size:14px}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+label.btn{display:inline-block}
+.photo-msg{font-size:13px;color:var(--muted)}
+
+/* čísla */
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:18px}
+.tile{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px 10px;text-align:center}
+.tile b{display:block;font-size:26px;font-weight:800;line-height:1.1;font-variation-settings:"wdth" 110;font-variant-numeric:tabular-nums}
+.tile span{font-size:12px;color:var(--muted)}
+.tile.main{background:var(--ball-3);border-color:var(--ball-3);color:var(--ball-ink)}
+.tile.main span{color:var(--ball-ink);opacity:.75}
+
+.form-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.chip{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-weight:800;font-size:14px}
+.chip.w{background:var(--ball-3);color:var(--ball-ink)}
+.chip.l{background:var(--busy);color:var(--muted)}
+.streak{margin-left:6px;font-size:14px;color:var(--muted)}
+
+svg.chart{width:100%;height:160px;display:block}
+.chart-legend{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:4px}
+
+.people{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.person{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:4px}
+.person .lbl{font-size:12px;color:var(--muted)}
+.person .who{display:flex;gap:8px;align-items:center;font-weight:700;text-decoration:none;color:var(--ink)}
+.person .rec{font-size:13px;color:var(--muted)}
+@media (max-width:420px){ .people{grid-template-columns:1fr} .tiles{grid-template-columns:repeat(2,1fr)} }
+
+.game{padding:10px 0;border-top:1px solid var(--line);display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;font-size:14px}
+.game:first-child{border-top:0;padding-top:0}
+.game .when{font-size:12px;color:var(--muted)}
+.game .d{font-weight:800;font-variant-numeric:tabular-nums}
+.game .d.up{color:var(--turf-3)}
+.game .d.down{color:var(--warn)}
+a.plink{color:inherit;text-decoration:none;font-weight:600}
+a.plink:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <nav class="tabs" aria-label="Sekce">
+      <a href="./">Kurty</a>
+      <a href="match.html">Zápasy</a>
+      <a href="leaderboard.html">Žebříček</a>
+    </nav>
+    <div id="account" class="acct"></div>
+  </div>
+
+  <p class="err" id="error" role="alert" hidden></p>
+
+  <section class="card" id="login" hidden>
+    <h2>Nejdřív se přihlas</h2>
+    <p class="note" style="margin-bottom:12px">Profily hráčů vidí jen přihlášení z party.</p>
+    <button class="btn" type="button" onclick="window.padelOpenLogin && window.padelOpenLogin(false)">Přihlásit</button>
+  </section>
+
+  <p class="empty" id="notfound" hidden>Tenhle hráč neexistuje nebo smazal účet. <a href="leaderboard.html">Zpět na žebříček</a></p>
+
+  <div id="app" hidden>
+    <header class="hero">
+      <div class="ph" id="photo"></div>
+      <div>
+        <h1 id="name"></h1>
+        <div class="elo" id="elo"></div>
+        <div class="photo-actions" id="photo-actions" hidden>
+          <label class="btn" for="photo-input">Změnit fotku</label>
+          <input id="photo-input" type="file" accept="image/*" hidden>
+          <button class="btn ghost" id="photo-remove" type="button" hidden>Odebrat</button>
+          <span class="photo-msg" id="photo-msg" role="status"></span>
+        </div>
+      </div>
+    </header>
+
+    <div class="tiles" id="tiles"></div>
+
+    <section class="card">
+      <h2>Forma</h2>
+      <div id="form"></div>
+    </section>
+
+    <section class="card">
+      <h2>Vývoj ELO</h2>
+      <div id="chart"></div>
+    </section>
+
+    <section class="card">
+      <h2>Spoluhráči a soupeři</h2>
+      <div id="people"></div>
+    </section>
+
+    <section class="card">
+      <h2>Odehrané zápasy</h2>
+      <div id="games"></div>
+    </section>
+  </div>
+</div>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const DOW = ["ne","po","út","st","čt","pá","so"];
+const dateOf = ymd => { const [y,m,d] = ymd.split("-").map(Number); return new Date(y,m-1,d); };
+const dShort = ymd => { const d = dateOf(ymd); return `${DOW[d.getDay()]} ${d.getDate()}. ${d.getMonth()+1}.`; };
+function showError(msg){ const e = $("error"); e.textContent = msg; e.hidden = !msg; }
+const plural = (n, one, few, many) => n === 1 ? one : n >= 2 && n <= 4 ? few : many;
+
+let api = null, S = null, me = null, roster = null, matches = [];
+const target = () => new URLSearchParams(location.search).get("id") || me;
+const nameOf = id => ((roster || []).find(p => p.id === id) || {}).name
+  || (matches.find(m => m.names && m.names[id]) || {names: {}}).names[id] || "?";
+const player = id => (roster || []).find(p => p.id === id) || {id, name: nameOf(id)};
+const link = id => `<a class="plink" href="profile.html?id=${encodeURIComponent(id)}">${esc(nameOf(id))}</a>`;
+
+function render(){
+  if (!S || !roster) return;
+  const id = target(), p = roster.find(x => x.id === id);
+  $("notfound").hidden = !!p; $("app").hidden = !p;
+  if (!p) return;
+  const own = id === me;
+  document.title = `${p.name} – profil`;
+  $("name").textContent = p.name;
+  $("photo").innerHTML = S.avatar(p, 92);
+  $("photo-actions").hidden = !own;
+  $("photo-remove").hidden = !own || !p.photo;
+
+  const {ratings, history} = S.computeElo(matches);
+  const elo = S.ratingOf(ratings, id);
+  const ranked = Object.keys(history).filter(x => roster.some(r => r.id === x)).sort((a, b) => ratings[b] - ratings[a]);
+  const rank = ranked.indexOf(id);
+  $("elo").innerHTML = `ELO <b>${elo}</b>${rank >= 0 ? ` · ${rank + 1}. z ${ranked.length}` : " · zatím bez zápasu"}`;
+
+  const st = S.playerStats(id, matches);
+  $("tiles").innerHTML = [["main", st.pts, "bodů"], ["", st.played, plural(st.played, "zápas", "zápasy", "zápasů")], ["", `${st.w}–${st.l}`, "výhry–prohry"], ["", st.played ? st.pct + " %" : "–", "úspěšnost"]]
+    .map(([c, v, l]) => `<div class="tile ${c}"><b>${v}</b><span>${l}</span></div>`).join("");
+
+  $("form").innerHTML = st.played
+    ? `<div class="form-row">${st.form.map(w => `<span class="chip ${w ? "w" : "l"}" title="${w ? "výhra" : "prohra"}">${w ? "V" : "P"}</span>`).join("")}
+       <span class="streak">${st.streak >= 2 ? `${st.streak} ${st.streakWin ? plural(st.streak, "výhra", "výhry", "výher") : plural(st.streak, "prohra", "prohry", "proher")} v řadě` : "Posledních 5 zápasů, nejnovější vpravo"}</span></div>`
+    : `<p class="empty">Zatím žádný zapsaný zápas.</p>`;
+
+  // graf ELO
+  const h = history[id] || [];
+  if (h.length < 2){
+    $("chart").innerHTML = `<p class="empty">Graf se ukáže po dvou zapsaných zápasech.</p>`;
+  } else {
+    const pts = [{elo: S.ELO_START, date: null}, ...h];
+    const lo = Math.min(...pts.map(x => x.elo)) - 10, hi = Math.max(...pts.map(x => x.elo)) + 10;
+    const W = 600, H = 160, pad = 8;
+    const X = i => pad + i * (W - 2 * pad) / (pts.length - 1), Y = e => H - pad - (e - lo) * (H - 2 * pad) / (hi - lo);
+    const line = pts.map((x, i) => `${X(i).toFixed(1)},${Y(x.elo).toFixed(1)}`).join(" ");
+    const base = Y(S.ELO_START);
+    $("chart").innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Vývoj ELO od ${S.ELO_START} do ${elo}">
+        <line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="var(--line)" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>
+        <polyline points="${line}" fill="none" stroke="var(--turf-3)" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+        ${pts.map((x, i) => `<circle cx="${X(i)}" cy="${Y(x.elo)}" r="3.5" fill="${i === pts.length - 1 ? "var(--ball-3)" : "var(--turf-3)"}" stroke="var(--paper)" stroke-width="1.5"><title>${x.date ? dShort(x.date) + ": " : "Start: "}${x.elo}</title></circle>`).join("")}
+      </svg>
+      <div class="chart-legend"><span>start ${S.ELO_START}</span><span>max ${Math.max(...pts.map(x => x.elo))}</span><span>teď ${elo}</span></div>`;
+  }
+
+  const person = (lbl, x, rec) => x ? `<div class="person"><span class="lbl">${lbl}</span>
+      <a class="who" href="profile.html?id=${encodeURIComponent(x.id)}">${S.avatar(player(x.id), 30)} ${esc(nameOf(x.id))}</a><span class="rec">${rec(x)}</span></div>` : "";
+  const ppl = [
+    person("Nejlepší parťák", st.bestPartner, x => `spolu ${x.w}–${x.l}`),
+    person("Nejčastější parťák", st.mostPartner && st.mostPartner !== st.bestPartner ? st.mostPartner : null, x => `spolu ${x.w + x.l} ${plural(x.w + x.l, "zápas", "zápasy", "zápasů")}`),
+    person("Nemesis", st.nemesis, x => `proti němu ${x.w}–${x.l}`),
+    person("Oblíbený soupeř", st.victim && (!st.nemesis || st.victim.id !== st.nemesis.id) ? st.victim : null, x => `proti němu ${x.w}–${x.l}`),
+  ].join("");
+  $("people").innerHTML = ppl ? `<div class="people">${ppl}</div>` : `<p class="empty">Ukáže se po prvních zápasech.</p>`;
+
+  const eloBy = Object.fromEntries(h.map(x => [x.match, x.delta]));
+  $("games").innerHTML = st.matches.length ? st.matches.slice(0, 15).map(m => {
+    const won = m.winners.includes(id), mine = won ? m.winners : m.losers, theirs = won ? m.losers : m.winners;
+    const d = eloBy[m.id];
+    return `<div class="game"><span class="chip ${won ? "w" : "l"}">${won ? "V" : "P"}</span>
+      <div><div class="when">${dShort(m.date)}${m.venueName ? " · " + esc(m.venueName) : ""}${m.score ? " · " + esc(m.score) : ""}</div>
+      ${mine.filter(x => x !== id).map(link).join(" & ") || "sám"} proti ${theirs.map(link).join(" & ")}</div>
+      <span class="d ${d > 0 ? "up" : "down"}">${d > 0 ? "+" + d : d}</span></div>`;
+  }).join("") : `<p class="empty">Zatím žádný zapsaný zápas.</p>`;
+}
+
+// --- fotka: zmenší se na 256 × 256 px a uloží k profilu
+async function shrink(file){
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("Tenhle obrázek neumím načíst.")); i.src = url; });
+    const side = Math.min(img.naturalWidth, img.naturalHeight), size = 256;
+    const c = document.createElement("canvas"); c.width = c.height = size;
+    const ctx = c.getContext("2d");
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, size, size);
+    for (const q of [0.82, 0.7, 0.55]){
+      const data = c.toDataURL("image/jpeg", q);
+      if (data.length < 150000) return data;
+    }
+    throw new Error("Fotka je i po zmenšení moc velká.");
+  } finally { URL.revokeObjectURL(url); }
+}
+$("photo-input").onchange = async e => {
+  const f = e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  $("photo-msg").textContent = "Nahrávám…";
+  try { await api.updatePlayer(me, {photo: await shrink(f)}); $("photo-msg").textContent = "Uloženo"; }
+  catch(err){ $("photo-msg").textContent = err.code === "permission-denied" ? "Firebase fotku odmítla (zkontroluj pravidla)." : err.message; }
+  setTimeout(() => { if ($("photo-msg").textContent === "Uloženo") $("photo-msg").textContent = ""; }, 2500);
+};
+$("photo-remove").onclick = async () => {
+  $("photo-msg").textContent = "Odebírám…";
+  try { await api.updatePlayer(me, {photo: null}); $("photo-msg").textContent = ""; }
+  catch(err){ $("photo-msg").textContent = err.message; }
+};
+
+(async () => {
+  const V = window.__padelV ||= Date.now();
+  try {
+    S = await import("./stats.js?v=" + V);
+    api = await (await import("./fb.js?v=" + V)).connect(showError);
+    if (api) (await import("./account.js?v=" + V)).mountAccount(api, $("account"));
+  } catch(e){ showError("Připojení k Firebase selhalo: " + e.message); }
+  if (!api){ $("login").hidden = false; return; }
+  let unsubs = [];
+  api.onAuth(u => {
+    unsubs.forEach(f => typeof f === "function" && f()); unsubs = [];
+    me = u ? u.uid : null;
+    $("login").hidden = !!u;
+    if (!u){ $("app").hidden = true; $("notfound").hidden = true; return; }
+    unsubs.push(api.watchPlayers(rows => { roster = rows; render(); }));
+    unsubs.push(api.watchMatches("2000-01-01", rows => { matches = rows; render(); }));
+  });
+})();
+</script>
+</body>
+</html>

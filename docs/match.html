@@ -270,8 +270,10 @@ table.board{width:100%;border-collapse:collapse;font-size:15px}
 // window.__MOCK_DB__ slouží k testování bez Firebase.
 let api = null;
 const V = window.__padelV ||= Date.now();   // jedna verze modulů na načtení stránky
+let S = null;                                  // stats.js (ELO, férové týmy)
 async function connect(){
   const m = await import("./fb.js?v=" + V);
+  S = await import("./stats.js?v=" + V);
   const conn = await m.connect(showError);
   if (conn) (await import("./account.js?v=" + V)).mountAccount(conn, $("account"));
   return conn;
@@ -587,7 +589,7 @@ function renderMatches(){
     h += `<div class="match" id="m-${m.id}" data-id="${m.id}">
       <div class="opt-head"><span class="opt-time">${fmt(m.start)}–${fmt(m.start + m.dur)}</span>${where}</div>
       <div class="slots4">${seats}</div>
-      ${!full ? `<p class="note" style="margin:0 0 6px">${missing === 1 ? "Chybí 1 hráč" : `Chybí ${missing} hráči`}</p>` : ""}
+      ${!full ? `<p class="note" style="margin:0 0 6px">${missing === 1 ? "Chybí 1 hráč" : `Chybí ${missing} hráči`}</p>` : fairTeams(m)}
       ${invited.length ? `<p class="note" style="margin:0 0 6px">Můžou: ${invited.map(p => esc(p.name)).join(", ")}</p>` : ""}
       ${freeLine ? `<p class="note" style="margin:0 0 8px">${freeLine}</p>` : ""}
       ${m.booked ? `<p class="booked" style="margin:0 0 8px">✓ Zarezervoval(a) ${esc(m.names[m.booked] || "někdo")}</p>` : ""}
@@ -661,7 +663,8 @@ function renderPlayed(){
     const r = el.querySelector("[data-result]");
     if (r) r.onclick = () => {
       resultOpen = resultOpen === m.id ? null : m.id;
-      resultDraft = {t1: (m.winners || m.players.slice(0,2)).slice(), t2: (m.losers || m.players.slice(2,4)).slice(), win: m.winners ? 1 : null, score: m.score || ""};
+      const fair = !m.winners && S && m.players.length === 4 ? S.balanceTeams(m.players, S.computeElo(matches).ratings) : null;
+      resultDraft = {t1: (m.winners || (fair ? fair.t1 : m.players.slice(0,2))).slice(), t2: (m.losers || (fair ? fair.t2 : m.players.slice(2,4))).slice(), win: m.winners ? 1 : null, score: m.score || ""};
       renderPlayed();
     };
     const sk = el.querySelector("[data-skip]");
@@ -749,6 +752,17 @@ function googleCalUrl(m){
   const q = new URLSearchParams({action: "TEMPLATE", text: title, dates: `${utcStamp(s)}/${utcStamp(e)}`, details: desc, ctz: "Europe/Prague"});
   if (loc) q.set("location", loc);
   return "https://calendar.google.com/calendar/render?" + q.toString();
+}
+
+// Férové týmy podle ELO (jen u plného zápasu 2 na 2)
+function fairTeams(m){
+  if (!S || m.players.length !== 4) return "";
+  const {ratings} = S.computeElo(matches);
+  const b = S.balanceTeams(m.players, ratings);
+  if (!b) return "";
+  const nm = id => esc(m.names[id] || id);
+  const p1 = Math.round(b.p1 * 100);
+  return `<p class="note" style="margin:0 0 8px">⚖️ Férové týmy podle ELO: <b style="color:var(--ink)">${b.t1.map(nm).join(" & ")}</b> proti <b style="color:var(--ink)">${b.t2.map(nm).join(" & ")}</b> (šance ${p1} : ${100 - p1})</p>`;
 }
 
 async function shareMatch(m){

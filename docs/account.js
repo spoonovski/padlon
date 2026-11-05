@@ -50,7 +50,7 @@ export function mountAccount(api, el){
     const st = document.createElement("style"); st.id = "acct-css"; st.textContent = CSS; document.head.appendChild(st);
   }
   const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-  let user = null, name = "", signup = false;
+  let user = null, name = "", photo = null, signup = false;
 
   // --- okno přihlášení / registrace
   const dlg = document.createElement("dialog");
@@ -137,7 +137,10 @@ export function mountAccount(api, el){
       el.querySelector("button").onclick = () => openLogin(false);
       return;
     }
-    el.innerHTML = `<button class="acct-btn" type="button" aria-haspopup="menu" aria-expanded="false"><span class="acct-av" aria-hidden="true">${esc((name || "?").charAt(0).toUpperCase())}</span><span class="acct-nm">${esc(name || "Účet")}</span></button>`;
+    const av = photo && photo.startsWith("data:image/")
+      ? `<img class="acct-av" src="${esc(photo)}" alt="" style="object-fit:cover">`
+      : `<span class="acct-av" aria-hidden="true">${esc((name || "?").charAt(0).toUpperCase())}</span>`;
+    el.innerHTML = `<button class="acct-btn" type="button" aria-haspopup="menu" aria-expanded="false">${av}<span class="acct-nm">${esc(name || "Účet")}</span></button>`;
     const b = el.querySelector("button");
     b.onclick = e => {
       e.stopPropagation();
@@ -145,23 +148,32 @@ export function mountAccount(api, el){
       const m = document.createElement("div");
       m.className = "acct-menu"; m.setAttribute("role", "menu");
       m.innerHTML = `<div class="who">Přihlášen jako ${esc(name)}</div>
+        <button role="menuitem" data-prof type="button">Můj profil</button>
         <button role="menuitem" data-out type="button">Odhlásit</button>
         <button role="menuitem" class="danger" data-del type="button">Smazat účet</button>`;
+      m.querySelector("[data-prof]").onclick = () => { location.href = "profile.html"; };
       m.querySelector("[data-out]").onclick = () => { close(); api.signOut(); };
       m.querySelector("[data-del]").onclick = () => { close(); dmsg.textContent = ""; df.p.value = ""; del.showModal(); df.p.focus(); };
       el.appendChild(m); b.setAttribute("aria-expanded", "true");
       m.querySelector("button").focus();
     };
   }
+  // fotka a jméno se po změně na profilu promítnou hned
+  let unsub = null;
   api.onAuth(async u => {
-    user = u; name = "";
+    if (typeof unsub === "function") unsub(); unsub = null;
+    user = u; name = ""; photo = null;
     render();
     // po registraci se profil zapíše o chvilku později, tak to chvíli zkoušíme
     for (let i = 0; u && user === u && i < 4; i++){
       const p = await api.getPlayer(u.uid).catch(() => null);
-      if (p && p.name){ name = p.name; render(); break; }
+      if (p && p.name){ name = p.name; photo = p.photo || null; render(); break; }
       await new Promise(r => setTimeout(r, 800));
     }
+    if (u && user === u) unsub = api.watchPlayers(rows => {
+      const me = rows.find(r => r.id === u.uid);
+      if (me && (me.name !== name || (me.photo || null) !== photo)){ name = me.name; photo = me.photo || null; render(); }
+    });
   });
   // stránky můžou okno otevřít i odjinud (např. výzva "Přihlas se")
   window.padelOpenLogin = openLogin;

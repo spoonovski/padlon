@@ -91,6 +91,15 @@ table.board{width:100%;border-collapse:collapse;font-size:15px}
 .board tr.you td:last-child{border-radius:0 8px 8px 0}
 @media (max-width:420px){ .board .pct{display:none} }
 
+.faces{display:inline-flex;vertical-align:middle;margin-right:4px}
+.faces > * + *{margin-left:-8px;box-shadow:0 0 0 2px var(--paper)}
+.step .faces{justify-self:center;margin:0 0 2px}
+a.plink{color:inherit;text-decoration:none}
+a.plink:hover{text-decoration:underline}
+.board td.n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+.board td.up{color:var(--turf-3);font-weight:600}
+.board td.down{color:var(--warn);font-weight:600}
+.seg button{padding:8px 13px}
 .recent{padding:10px 0;border-top:1px solid var(--line);font-size:14px}
 .recent:first-of-type{border-top:0;padding-top:0}
 .recent .when{color:var(--muted);font-size:13px}
@@ -129,6 +138,7 @@ table.board{width:100%;border-collapse:collapse;font-size:15px}
     <div class="seg" role="tablist" aria-label="Žebříček">
       <button role="tab" id="tab-solo" aria-selected="true" aria-controls="board-card" type="button">Jednotlivci</button>
       <button role="tab" id="tab-pairs" aria-selected="false" aria-controls="board-card" type="button">Dvojice</button>
+      <button role="tab" id="tab-elo" aria-selected="false" aria-controls="board-card" type="button">ELO</button>
     </div>
 
     <section class="card" id="board-card" role="tabpanel">
@@ -153,8 +163,11 @@ const dateOf = ymd => { const [y,m,d] = ymd.split("-").map(Number); return new D
 const dateTxt = ymd => { const d = dateOf(ymd); return `${DOW_LONG[d.getDay()]} ${d.getDate()}. ${d.getMonth()+1}.`; };
 function showError(msg){ const e = $("error"); e.textContent = msg; e.hidden = !msg; }
 
-let me = null, roster = null, matches = [], mode = "solo";
-try { if (localStorage.getItem("padel-board") === "pairs") mode = "pairs"; } catch(e){}
+let me = null, roster = null, matches = [], mode = "solo", S = null;
+try { const m = localStorage.getItem("padel-board"); if (["pairs","elo"].includes(m)) mode = m; } catch(e){}
+const player = id => (roster || []).find(p => p.id === id) || {id, name: names()[id] || "?"};
+const link = id => `<a class="plink" href="profile.html?id=${encodeURIComponent(id)}">${esc(names()[id] || "?")}</a>`;
+const faces = (ids, size) => `<span class="faces">${ids.map(id => S.avatar(player(id), size)).join("")}</span>`;
 
 const names = () => {
   const n = {};
@@ -167,6 +180,14 @@ const results = () => matches.filter(m => Array.isArray(m.winners) && Array.isAr
 
 // Body: výhra 3, prohra 0. Pořadí: body, pak úspěšnost, pak počet zápasů.
 function table(kind){
+  if (kind === "elo"){
+    const {ratings, history} = S.computeElo(matches);
+    const n = names();
+    return Object.keys(history).filter(known).map(id => {
+      const h = history[id], w = h.filter(x => x.delta > 0).length;
+      return {key: id, ids: [id], label: n[id] || "?", elo: S.ratingOf(ratings, id), last: h[h.length-1].delta, w, l: h.length - w, pct: Math.round(100 * w / h.length)};
+    }).sort((a,b) => b.elo - a.elo || a.label.localeCompare(b.label, "cs"));
+  }
   const st = {};
   const add = (key, ids, won) => {
     const s = st[key] ||= {key, ids, pts: 0, w: 0, l: 0};
@@ -190,26 +211,33 @@ function table(kind){
 }
 
 function render(){
-  $("tab-solo").setAttribute("aria-selected", mode === "solo");
-  $("tab-pairs").setAttribute("aria-selected", mode === "pairs");
-  $("board-sub").textContent = mode === "solo"
-    ? "Body sbírá každý hráč sám za sebe, ať hraje s kýmkoliv."
-    : "Stejná dvojice dohromady, bez ohledu na pořadí jmen.";
+  if (!S) return;
+  for (const k of ["solo","pairs","elo"]) $("tab-" + k).setAttribute("aria-selected", mode === k);
+  $("board-sub").textContent = {
+    solo: "Body sbírá každý hráč sám za sebe, ať hraje s kýmkoliv.",
+    pairs: "Stejná dvojice dohromady, bez ohledu na pořadí jmen.",
+    elo: "Každý začíná na 1000. Výhra nad silnějšími dá víc, nad slabšími méně.",
+  }[mode];
   const rows = table(mode);
   const isMe = r => me && r.ids.includes(me);
+  const score = r => mode === "elo" ? r.elo : r.pts;
   if (!rows.length){
     $("podium").innerHTML = "";
-    $("board").innerHTML = `<p class="empty">${mode === "solo" ? "Zatím žádný zapsaný výsledek." : "Zatím žádný výsledek zápasu dvojic."} Výsledek zapíšeš po zápase v záložce <a href="match.html#odehrane">Zápasy</a>.</p>`;
+    $("board").innerHTML = `<p class="empty">${mode === "pairs" ? "Zatím žádný výsledek zápasu dvojic." : "Zatím žádný zapsaný výsledek."} Výsledek zapíšeš po zápase v záložce <a href="match.html#odehrane">Zápasy</a>.</p>`;
   } else {
-    // pořadí se stejnými body sdílí místo
+    // pořadí se stejným skóre sdílí místo
     let rank = 0, prev = null;
-    rows.forEach((r, i) => { if (r.pts !== prev){ rank = i + 1; prev = r.pts; } r.rank = rank; });
+    rows.forEach((r, i) => { if (score(r) !== prev){ rank = i + 1; prev = score(r); } r.rank = rank; });
     const top = rows.slice(0, 3);
     $("podium").innerHTML = top.length >= 2 ? `<div class="podium">${[1,0,2].map(i => top[i] ? `
-      <div class="step p${i+1} ${isMe(top[i]) ? "you" : ""}"><span class="who">${esc(top[i].label)}</span><span class="pts">${top[i].pts} b.</span><span class="block">${top[i].rank}</span></div>` : "<div></div>").join("")}</div>` : "";
-    let h = `<table class="board"><thead><tr><th></th><th>${mode === "solo" ? "Hráč" : "Dvojice"}</th><th>Zápasy</th><th>V–P</th><th class="pct">Úspěšnost</th><th>Body</th></tr></thead><tbody>`;
-    for (const r of rows){
-      h += `<tr class="${isMe(r) ? "you" : ""}"><td class="rank">${r.rank}.</td><td class="n">${esc(r.label)}</td><td>${r.w + r.l}</td><td>${r.w}–${r.l}</td><td class="pct">${r.pct} %</td><td class="pts">${r.pts}</td></tr>`;
+      <div class="step p${i+1} ${isMe(top[i]) ? "you" : ""}">${faces(top[i].ids, i === 0 ? 52 : 44)}<span class="who">${top[i].ids.map(link).join(" & ")}</span><span class="pts">${mode === "elo" ? top[i].elo + " ELO" : top[i].pts + " b."}</span><span class="block">${top[i].rank}</span></div>` : "<div></div>").join("")}</div>` : "";
+    let h;
+    if (mode === "elo"){
+      h = `<table class="board"><thead><tr><th></th><th>Hráč</th><th>Zápasy</th><th class="pct">Poslední</th><th>ELO</th></tr></thead><tbody>`;
+      for (const r of rows) h += `<tr class="${isMe(r) ? "you" : ""}"><td class="rank">${r.rank}.</td><td class="n">${faces(r.ids, 26)} ${link(r.ids[0])}</td><td>${r.w + r.l}</td><td class="pct ${r.last > 0 ? "up" : "down"}">${r.last > 0 ? "▲ +" + r.last : "▼ " + r.last}</td><td class="pts">${r.elo}</td></tr>`;
+    } else {
+      h = `<table class="board"><thead><tr><th></th><th>${mode === "solo" ? "Hráč" : "Dvojice"}</th><th>Zápasy</th><th>V–P</th><th class="pct">Úspěšnost</th><th>Body</th></tr></thead><tbody>`;
+      for (const r of rows) h += `<tr class="${isMe(r) ? "you" : ""}"><td class="rank">${r.rank}.</td><td class="n">${faces(r.ids, 26)} ${r.ids.map(link).join(" & ")}</td><td>${r.w + r.l}</td><td>${r.w}–${r.l}</td><td class="pct">${r.pct} %</td><td class="pts">${r.pts}</td></tr>`;
     }
     $("board").innerHTML = h + `</tbody></table>`;
   }
@@ -218,7 +246,7 @@ function render(){
   const recent = results().sort((a,b) => b.date.localeCompare(a.date) || b.start - a.start).slice(0, 8);
   $("recent").innerHTML = recent.length ? recent.map(m => `<div class="recent">
       <div class="when">${dateTxt(m.date)} · ${fmt(m.start)}${m.venueName ? " · " + esc(m.venueName) : ""}</div>
-      🏆 <b>${m.winners.map(id => esc(n[id] || "?")).join(" & ")}</b> porazili ${m.losers.map(id => esc(n[id] || "?")).join(" & ")}${m.score ? " · " + esc(m.score) : ""}</div>`).join("")
+      🏆 <b>${m.winners.map(link).join(" & ")}</b> porazili ${m.losers.map(link).join(" & ")}${m.score ? " · " + esc(m.score) : ""}</div>`).join("")
     : `<p class="empty">Tady se ukážou odehrané zápasy s výsledkem.</p>`;
 
   // odehrané zápasy, které čekají na výsledek
@@ -229,17 +257,20 @@ function render(){
   if (waiting.length) $("pending").innerHTML = `<span>${mine.length ? `U ${mine.length === 1 ? "tvého zápasu" : `${mine.length} tvých zápasů`} chybí výsledek.` : `${waiting.length === 1 ? "1 odehraný zápas čeká" : `${waiting.length} odehrané zápasy čekají`} na výsledek.`}</span><a href="match.html#odehrane">Zapsat</a>`;
 }
 
-$("tab-solo").onclick = () => { mode = "solo"; try { localStorage.setItem("padel-board", mode); } catch(e){} render(); };
-$("tab-pairs").onclick = () => { mode = "pairs"; try { localStorage.setItem("padel-board", mode); } catch(e){} render(); };
+const setMode = m => { mode = m; try { localStorage.setItem("padel-board", m); } catch(e){} render(); };
+const MODES = ["solo", "pairs", "elo"];
+MODES.forEach(m => $("tab-" + m).onclick = () => setMode(m));
 // šipky mezi podzáložkami
 document.querySelector(".seg").addEventListener("keydown", e => {
-  if (e.key === "ArrowRight" || e.key === "ArrowLeft"){ (mode === "solo" ? $("tab-pairs") : $("tab-solo")).click(); (mode === "solo" ? $("tab-solo") : $("tab-pairs")).focus(); }
+  const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+  if (d){ const m = MODES[(MODES.indexOf(mode) + d + 3) % 3]; setMode(m); $("tab-" + m).focus(); }
 });
 
 (async () => {
   let api = null;
   const V = window.__padelV ||= Date.now();
   try {
+    S = await import("./stats.js?v=" + V);
     api = await (await import("./fb.js?v=" + V)).connect(showError);
     if (api) (await import("./account.js?v=" + V)).mountAccount(api, $("account"));
   }
