@@ -35,17 +35,35 @@ service cloud.firestore {
     }
 
     // Zápas: zakládají, přidávají se a zapisují výsledky přihlášení hráči
+    function validMatch(d) {
+      return d.keys().hasOnly(['date', 'start', 'dur', 'venue', 'venueName', 'url',
+               'players', 'names', 'invited', 'booked', 'created', 'by', 'winners', 'losers', 'score',
+               'price', 'priceMode', 'qr', 'paid'])
+        && (!('winners' in d) || (d.winners is list && d.winners.size() <= 2))
+        && (!('losers' in d) || (d.losers is list && d.losers.size() <= 2))
+        && (!('score' in d) || shortStr(d.score, 30))
+        && d.players is list && d.players.size() <= 4
+        && d.date.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && d.dur in [90, 120]
+        && (d.get('qr', null) == null
+            || (d.qr is string && d.qr.size() < 300000 && d.qr.matches('^data:image/(png|jpeg);base64,.*')))
+        && (d.get('price', null) == null || (d.price is number && d.price <= 100000))
+        && (d.get('paid', []) is list && d.get('paid', []).size() <= 4);
+    }
     match /matches/{id} {
       allow read: if signedIn();
-      allow create, update: if isPlayer()
-        && request.resource.data.keys().hasOnly(['date', 'start', 'dur', 'venue', 'venueName', 'url',
-             'players', 'names', 'invited', 'booked', 'created', 'by', 'winners', 'losers', 'score'])
-        && (!('winners' in request.resource.data) || (request.resource.data.winners is list && request.resource.data.winners.size() <= 2))
-        && (!('losers' in request.resource.data) || (request.resource.data.losers is list && request.resource.data.losers.size() <= 2))
-        && (!('score' in request.resource.data) || shortStr(request.resource.data.score, 30))
-        && request.resource.data.players is list && request.resource.data.players.size() <= 4
-        && request.resource.data.date.matches('^\\d{4}-\\d{2}-\\d{2}$')
-        && request.resource.data.dur in [90, 120];
+      allow create: if isPlayer() && validMatch(request.resource.data)
+        && request.resource.data.get('booked', null) in [null, request.auth.uid];
+      allow update: if isPlayer() && validMatch(request.resource.data)
+        // rezervujícím se může označit jen každý sám (nebo rezervaci zrušit)
+        && (request.resource.data.get('booked', null) == resource.data.get('booked', null)
+            || request.resource.data.get('booked', null) == null
+            || request.resource.data.get('booked', null) == request.auth.uid)
+        // cenu a QR mění jen ten, kdo kurt zarezervoval (nebo se mažou spolu s rezervací)
+        && ((request.resource.data.get('qr', null) == resource.data.get('qr', null)
+             && request.resource.data.get('price', null) == resource.data.get('price', null))
+            || request.auth.uid == resource.data.get('booked', null)
+            || (request.resource.data.get('qr', null) == null && request.resource.data.get('price', null) == null));
       allow delete: if isPlayer();
     }
   }
