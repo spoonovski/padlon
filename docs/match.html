@@ -162,11 +162,12 @@ table.who{border-collapse:separate;border-spacing:2px;font-variation-settings:"w
 .plan .team.a{left:0}.plan .team.b{right:0}
 .plan-wrap{margin-top:18px}
 .bench{font-size:13px;color:var(--muted);margin:0 0 8px}
-.seat.noside{display:inline-flex;flex-direction:column;align-items:flex-start;line-height:1.1;padding-top:4px !important;padding-bottom:5px !important}
-.seat .noside-l{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#ff9a1f;margin-bottom:2px}
-.seat.you .noside-l{color:#c25a00}
-.seat .side-ok{width:14px;height:14px;border-radius:50%;background:#22c55e;display:grid;place-items:center;margin-bottom:2px}
-.seat .side-ok svg{width:10px;height:10px;display:block}
+.seatw{display:inline-flex;align-items:center;gap:5px}
+.side-ok{width:16px;height:16px;border-radius:50%;background:#22c55e;display:grid;place-items:center;flex:none}
+.side-ok svg{width:11px;height:11px;display:block}
+.noside-box{background:#ff9a1f;color:#1d1200;padding:8px 12px;margin:2px 0 10px;font-size:14px;line-height:1.35}
+.noside-box b{display:block;font-weight:800;text-transform:uppercase;font-style:italic;letter-spacing:.03em;font-size:13px}
+.noside-box a{color:inherit;font-weight:700}
 /* chat zápasu */
 .chat{margin:10px 0 4px;background:rgba(255,255,255,.04);padding:10px}
 .chat-log{max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
@@ -676,8 +677,8 @@ function renderMatches(){
     if (m.date !== lastDate){ h += `<h3 class="date-head">${dateTitle(m.date)}</h3>`; lastDate = m.date; }
     const inIt = m.players.includes(me.id), full = m.players.length >= 4, hs = holdsOf(m), free = freeSeats(m), missing = 4 - m.players.length;
     const sided = new Set(Object.values(posMap(m)));
-    const seats = [...m.players.map(id => sided.has(id) ? plink(id, `<small class="side-ok" title="Vybral stranu" aria-label="Vybral stranu"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.6 6.3l2.2 2.2 4.6-4.8" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></small>${esc(m.names[id] || id)}`, `seat noside sided ${id === me.id ? "you" : ""}`)
-        : plink(id, `<small class="noside-l">Nevybral stranu</small>${esc(m.names[id] || id)}`, `seat noside ${id === me.id ? "you" : ""}`)),
+    const ok = `<span class="side-ok" title="Vybral stranu" aria-label="Vybral stranu"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.6 6.3l2.2 2.2 4.6-4.8" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></span>`;
+    const seats = [...m.players.map(id => `<span class="seatw">${sided.has(id) ? ok : ""}${plink(id, esc(m.names[id] || id), `seat ${id === me.id ? "you" : ""}`)}</span>`),
       ...hs.map((h, i) => `<span class="seat held" title="Drženo${h.name ? " pro " + esc(h.name) : " pro domluveného hráče"}">${h.name ? plink(h.for, esc(h.name)) : "drženo"}${inIt || h.for === me.id ? `<button class="x" data-hold-del="${i}" type="button" aria-label="Zrušit držené místo">×</button>` : ""}</span>`),
       ...[...Array(Math.max(0, free))].map(() => inIt ? `<button class="seat free" data-hold-open type="button" title="Podržet místo pro někoho">volno · podržet</button>` : `<span class="seat free">volno</span>`)].join("");
     const invited = (m.invited || []).filter(p => !m.players.includes(p.id));
@@ -694,6 +695,7 @@ function renderMatches(){
     h += `<div class="match" id="m-${m.id}" data-id="${m.id}">
       <div class="opt-head"><span class="opt-time">${fmt(m.start)}–${fmt(m.start + m.dur)}</span>${where}</div>
       <div class="slots4">${seats}</div>
+      ${(() => { const miss = m.players.filter(id => !sided.has(id)); return miss.length ? `<div class="noside-box" role="status"><b>Hráčům chybí vybrat stranu:</b>${miss.map(id => plink(id, esc(m.names[id] || id))).join(", ")}</div>` : ""; })()}
       ${planHidden.has(m.id) ? "" : courtPlan(m)}
       ${holdForm(m)}
       ${full ? (teamsFromPos(m) ? "" : fairTeams(m))
