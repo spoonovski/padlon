@@ -4,18 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Volné kurty</title>
-<meta name="theme-color" content="#eef3f7" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0f1c2e" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#06142f">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Padel">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Padlon">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
+<meta name="color-scheme" content="dark">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,400..900;1,62..125,400..900&display=swap" rel="stylesheet">
 <style>
 :root{
   --glass:#eef3f7;      /* pozadí – sklo kurtu */
@@ -210,16 +210,20 @@ body:not(.work) .work-only{display:none}
 .btn{border:0;border-radius:9px;padding:9px 14px;font-weight:650;cursor:pointer;background:var(--ink);color:var(--glass)}
 .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
 </style>
+<link rel="stylesheet" href="theme.css?v=1">
 </head>
 <body>
 <div class="wrap">
+  <div class="brandbar">
+    <a class="brand" href="./" aria-label="Padlon – volné kurty"><img src="logo.svg" alt="" width="30" height="31"><span>Padlon</span></a>
+    <div id="account" class="acct"></div>
+  </div>
   <div class="topbar">
-  <nav class="tabs" aria-label="Sekce">
+    <nav class="tabs" aria-label="Sekce">
       <a href="./" aria-current="page">Kurty</a>
       <a href="match.html">Zápasy</a>
       <a href="leaderboard.html">Žebříček</a>
     </nav>
-    <div id="account" class="acct"></div>
   </div>
   <header class="top">
     <h1>Volné<br>kurty</h1>
