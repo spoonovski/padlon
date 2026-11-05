@@ -172,6 +172,16 @@ table.who{border-collapse:separate;border-spacing:2px;font-variation-settings:"w
 .chat-log .empty{font-size:13px;color:var(--muted);margin:0}
 .chat-form{display:flex;gap:6px}
 .chat-form input{flex:1;min-width:0}
+/* přepínače Chat / Pozice */
+.tg{display:inline-flex;align-items:center;gap:8px}
+.tg .knob{width:30px;height:18px;border-radius:999px;background:rgba(255,255,255,.18);position:relative;flex:none}
+.tg .knob::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--paper)}
+.tg[aria-pressed="true"] .knob{background:var(--ball-3)}
+.tg[aria-pressed="true"] .knob::after{left:14px;background:var(--ball-ink)}
+.tg.chat-btn .knob{background:rgba(6,20,47,.25)}
+.tg.chat-btn[aria-pressed="true"] .knob{background:var(--ball-ink)}
+.tg.chat-btn[aria-pressed="true"] .knob::after{background:var(--ball-3)}
+@media (prefers-reduced-motion:no-preference){.tg .knob::after{transition:left .15s}}
 .chat-btn .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ball-ink);margin-left:6px;vertical-align:middle}
 .seat{font-size:14px;font-weight:600;padding:5px 10px;border-radius:8px;background:var(--turf-1)}
 .seat.free{background:transparent;border:1px dashed var(--line);color:var(--muted);font-weight:500}
@@ -677,7 +687,7 @@ function renderMatches(){
         ${inIt && m.venue && !m.booked ? `<button class="btn ball small" data-book type="button">Zarezervoval jsem</button>` : ""}
         ${m.booked === me.id ? `<button class="btn ghost small" data-unbook type="button">Zrušit rezervaci</button>` : ""}
         ${chatButton(m)}
-        <button class="btn ghost small" data-plan type="button" aria-pressed="${!planHidden.has(m.id)}">${planHidden.has(m.id) ? "Ukázat pozice" : "Skrýt pozice"}</button>
+        <button class="btn ghost small tg" data-plan type="button" aria-pressed="${!planHidden.has(m.id)}"><span class="knob" aria-hidden="true"></span>Pozice</button>
         <button class="btn ghost small" data-share type="button">Poslat partě</button>
         <button class="btn ghost small" data-cal type="button" aria-expanded="false">Do kalendáře</button>
         ${m.by === me.id || !m.players.length ? `<button class="linkbtn" data-delete type="button">Smazat</button>` : ""}
@@ -796,7 +806,7 @@ const getSeen = id => { try { return +localStorage.getItem(seenKey(id)) || 0; } 
 const setSeen = (id, n) => { try { localStorage.setItem(seenKey(id), n); } catch(e){} };
 function chatButton(m){
   const n = m.chatN || 0, unread = n > getSeen(m.id) && !chatOpen.has(m.id);
-  return `<button class="btn ball small chat-btn" data-chat type="button" aria-expanded="${chatOpen.has(m.id)}">Chat${n ? " · " + n : ""}${unread ? '<span class="dot" aria-label="nové zprávy"></span>' : ""}</button>`;
+  return `<button class="btn ball small chat-btn tg" data-chat type="button" aria-pressed="${chatOpen.has(m.id)}"><span class="knob" aria-hidden="true"></span>Chat${n ? " · " + n : ""}${unread ? '<span class="dot" aria-label="nové zprávy"></span>' : ""}</button>`;
 }
 function chatLog(m){
   const list = chatMsgs[m.id];
