@@ -144,6 +144,10 @@ table.who{border-collapse:separate;border-spacing:2px;font-variation-settings:"w
 .seat{font-size:14px;font-weight:600;padding:5px 10px;border-radius:8px;background:var(--turf-1)}
 .seat.free{background:transparent;border:1px dashed var(--line);color:var(--muted);font-weight:500}
 .seat.you{background:var(--ball-3);color:var(--ball-ink)}
+a.plink{color:inherit;text-decoration:none}
+a.plink:hover{text-decoration:underline}
+a.seat,.pay-who a{text-decoration:none}
+a.seat{color:inherit}
 .booked{font-size:13px;font-weight:650;color:var(--turf-3)}
 .actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .card-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
@@ -183,8 +187,8 @@ table.board{width:100%;border-collapse:collapse;font-size:15px}
 .pay-qr{border:0;padding:6px;background:#fff;cursor:zoom-in;border-radius:4px;line-height:0}
 .pay-qr img{width:132px;height:auto;display:block}
 .pay-who{display:flex;flex-wrap:wrap;gap:6px;font-size:13px}
-.pay-who span{padding:3px 10px;background:rgba(255,255,255,.07);border-radius:999px;color:var(--muted)}
-.pay-who span.ok{background:rgba(212,255,58,.16);color:var(--ball-3);font-weight:700}
+.pay-who span,.pay-who a{padding:3px 10px;background:rgba(255,255,255,.07);border-radius:999px;color:var(--muted)}
+.pay-who .ok{background:rgba(212,255,58,.16);color:var(--ball-3);font-weight:700}
 .payform{width:100%}
 dialog.qr-dlg{border:0;padding:16px;background:#fff;color:#06142f;border-radius:8px;text-align:center;max-width:min(92vw,440px)}
 dialog.qr-dlg::backdrop{background:rgba(3,10,25,.8)}
@@ -323,6 +327,8 @@ const $ = id => document.getElementById(id);
 const fmt = m => String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
 const hm = s => { const [h,m] = s.split(":").map(Number); return h*60+m; };
 const slotMin = i => START + i*STEP;
+// jméno hráče jako odkaz na jeho profil
+const plink = (id, label, cls = "plink") => `<a class="${cls}" href="profile.html?id=${encodeURIComponent(id)}">${label}</a>`;
 const ymdOf = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 const dateOf = ymd => { const [y,m,d] = ymd.split("-").map(Number); return new Date(y,m-1,d); };
 const dayLabel = ymd => { const d = dateOf(ymd); return `${DOW_ACC[d.getDay()]} ${d.getDate()}. ${d.getMonth()+1}.`; };
@@ -474,7 +480,7 @@ function renderWho(){
   for (let i=first;i<=last;i++){ const t = slotMin(i); h += `<th class="${t%60?"":"hour"}">${t%60 ? "" : t/60}</th>`; }
   h += `</tr></thead><tbody>`;
   for (const p of ps){
-    h += `<tr><th class="p ${p.id === me.id ? "you" : ""}" scope="row">${esc(p.name)}</th>`;
+    h += `<tr><th class="p ${p.id === me.id ? "you" : ""}" scope="row">${plink(p.id, esc(p.name))}</th>`;
     for (let i=first;i<=last;i++) h += `<td class="${p.slots[i] === "1" ? "on" : ""}" title="${fmt(slotMin(i))}"></td>`;
     h += `</tr>`;
   }
@@ -532,7 +538,7 @@ function renderOptions(){
     const full = o.who.length >= 4;
     h += `<div class="opt"><div class="opt-head"><span class="opt-time">${fmt(o.from)}–${fmt(o.to)}</span>
       <span class="tag ${full ? "" : "miss"}">${full ? `${o.who.length} hráči` : "Chybí 1 hráč"}</span></div>
-      <div class="players">${o.who.map(id => esc(names[id] || id)).join(", ")}${full ? "" : ' <span class="ghost">+ ?</span>'}</div>`;
+      <div class="players">${o.who.map(id => plink(id, esc(names[id] || id))).join(", ")}${full ? "" : ' <span class="ghost">+ ?</span>'}</div>`;
     if (!courts) h += `<div class="nocourt">Volné kurty se nepodařilo načíst.</div>`;
     else if (!o.venues.length) h += `<div class="nocourt">V tuhle dobu není nikde volný kurt na 90 minut.</div>`;
     else h += `<div class="courts">${o.venues.map(v => `<a class="court" href="${v.venue.url}" target="_blank" rel="noopener">${esc(v.venue.name)} · začátek ${v.starts.slice(0,3).map(i => fmt(slotMin(i))).join(", ")}${v.starts.length > 3 ? "…" : ""}</a>`).join("")}</div>`;
@@ -608,7 +614,7 @@ function renderMatches(){
   for (const m of list){
     if (m.date !== lastDate){ h += `<h3 class="date-head">${dateTitle(m.date)}</h3>`; lastDate = m.date; }
     const inIt = m.players.includes(me.id), full = m.players.length >= 4, missing = 4 - m.players.length;
-    const seats = [...m.players.map(id => `<span class="seat ${id === me.id ? "you" : ""}">${esc(m.names[id] || id)}</span>`),
+    const seats = [...m.players.map(id => plink(id, esc(m.names[id] || id), `seat ${id === me.id ? "you" : ""}`)),
       ...[...Array(Math.max(0, missing))].map(() => `<span class="seat free">volno</span>`)].join("");
     const invited = (m.invited || []).filter(p => !m.players.includes(p.id));
     let where;
@@ -627,7 +633,7 @@ function renderMatches(){
       ${!full ? `<p class="note" style="margin:0 0 6px">${missing === 1 ? "Chybí 1 hráč" : `Chybí ${missing} hráči`}</p>` : fairTeams(m)}
       ${invited.length ? `<p class="note" style="margin:0 0 6px">Můžou: ${invited.map(p => esc(p.name)).join(", ")}</p>` : ""}
       ${freeLine ? `<p class="note" style="margin:0 0 8px">${freeLine}</p>` : ""}
-      ${m.booked ? `<p class="booked" style="margin:0 0 8px">✓ Zarezervoval(a) ${esc(m.names[m.booked] || "někdo")}</p>` : ""}
+      ${m.booked ? `<p class="booked" style="margin:0 0 8px">✓ Zarezervoval(a) ${plink(m.booked, esc(m.names[m.booked] || "někdo"))}</p>` : ""}
       ${payBlock(m)}
       <div class="actions">
         ${inIt ? `<button class="btn ghost small" data-leave type="button">Nejdu</button>`
@@ -685,12 +691,12 @@ function renderPlayed(){
     const head = `<div class="when">${dateTitle(m.date)}</div><div class="opt-head"><span class="opt-time">${fmt(m.start)}–${fmt(m.start + m.dur)}</span>${m.venue ? `<span class="court">${esc(m.venueName)}</span>` : ""}</div>`;
     if (m.winners){
       h += `<div class="match" data-id="${m.id}">${head}
-        <p class="result">🏆 <b>${m.winners.map(id => esc(names[id] || id)).join(" & ")}</b> porazili ${m.losers.map(id => esc(names[id] || id)).join(" & ")}${m.score ? ` · ${esc(m.score)}` : ""}</p>
+        <p class="result">🏆 <b>${m.winners.map(id => plink(id, esc(names[id] || id))).join(" & ")}</b> porazili ${m.losers.map(id => plink(id, esc(names[id] || id))).join(" & ")}${m.score ? ` · ${esc(m.score)}` : ""}</p>
         <div class="actions"><button class="linkbtn" data-result type="button">Opravit výsledek</button></div>
         ${resultOpen === m.id ? resultForm(m) : ""}${payBlock(m)}</div>`;
     } else {
       h += `<div class="match" data-id="${m.id}">${head}
-        <p class="note" style="margin:6px 0 8px">Hráli: ${m.players.map(id => esc(names[id] || id)).join(", ")}</p>
+        <p class="note" style="margin:6px 0 8px">Hráli: ${m.players.map(id => plink(id, esc(names[id] || id))).join(", ")}</p>
         ${resultOpen === m.id ? resultForm(m) : `<div class="actions"><button class="btn ball small" data-result type="button">Zapsat výsledek</button><button class="linkbtn" data-skip type="button">Nehráli jsme</button></div>`}${payBlock(m)}</div>`;
     }
   }
@@ -769,7 +775,7 @@ function payBlock(m){
   // kdo už zaplatil
   const others = m.players.filter(id => id !== m.booked);
   if ((m.price || m.qr) && others.length){
-    h += `<div class="pay-who">${others.map(id => `<span class="${paid.includes(id) ? "ok" : ""}">${paid.includes(id) ? "✓ " : ""}${esc(names[id] || id)}</span>`).join("")}</div>`;
+    h += `<div class="pay-who">${others.map(id => plink(id, `${paid.includes(id) ? "✓ " : ""}${esc(names[id] || id)}`, paid.includes(id) ? "ok" : "")).join("")}</div>`;
     if (others.includes(me.id)) h += paid.includes(me.id)
       ? `<button class="linkbtn" data-unpaid type="button">Ještě jsem neposlal</button>`
       : `<button class="btn ball small" data-paid type="button">Zaplatil jsem${share ? " " + kc(share) : ""}</button>`;
@@ -890,7 +896,7 @@ function fairTeams(m){
   const {ratings} = S.computeElo(matches);
   const b = S.balanceTeams(m.players, ratings);
   if (!b) return "";
-  const nm = id => esc(m.names[id] || id);
+  const nm = id => plink(id, esc(m.names[id] || id));
   const p1 = Math.round(b.p1 * 100);
   return `<p class="note" style="margin:0 0 8px">⚖️ Férové týmy podle ELO: <b style="color:var(--ink)">${b.t1.map(nm).join(" & ")}</b> proti <b style="color:var(--ink)">${b.t2.map(nm).join(" & ")}</b> (šance ${p1} : ${100 - p1})</p>`;
 }
