@@ -147,6 +147,7 @@ table.who{border-collapse:separate;border-spacing:2px;font-variation-settings:"w
 .inline-select{padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--paper);font-size:14px}
 #new-form{margin:0 0 14px}
 #share-status:empty{display:none}
+.cal-links{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 /* výsledky a žebříček */
 .result{font-size:14px;margin:0 0 8px}
 .result b{font-weight:700}
@@ -705,7 +706,12 @@ function renderMatches(){
         ${inIt && m.venue && !m.booked ? `<button class="btn ball small" data-book type="button">Zarezervoval jsem</button>` : ""}
         ${m.booked === me.id ? `<button class="btn ghost small" data-unbook type="button">Zrušit rezervaci</button>` : ""}
         <button class="btn ghost small" data-share type="button">Poslat partě</button>
+        <button class="btn ghost small" data-cal type="button" aria-expanded="false">Do kalendáře</button>
         ${m.by === me.id || !m.players.length ? `<button class="linkbtn" data-delete type="button">Smazat</button>` : ""}
+      </div>
+      <div class="cal-links" hidden>
+        <a class="court" data-ics href="#">Apple / Outlook</a>
+        <a class="court" data-gcal href="#" target="_blank" rel="noopener">Google kalendář</a>
       </div></div>`;
   }
   $("matches").innerHTML = h;
@@ -724,6 +730,10 @@ function renderMatches(){
       try { await api.updateMatch(m.id, {venue: v.id, venueName: v.name, url: v.url}); } catch(e){ vs.disabled = false; showError("Místo se nepodařilo uložit: " + e.message); }
     };
     el.querySelector("[data-share]").onclick = () => shareMatch(m);
+    const cal = el.querySelector("[data-cal]"), links = el.querySelector(".cal-links");
+    cal.onclick = () => { links.hidden = !links.hidden; cal.setAttribute("aria-expanded", !links.hidden); };
+    el.querySelector("[data-ics]").onclick = e => { e.preventDefault(); downloadIcs(m); };
+    el.querySelector("[data-gcal]").href = googleCalUrl(m);
   });
   highlightFromHash();
 }
@@ -824,6 +834,46 @@ function renderBoard(){
     h += `<tr class="${r.id === me.id ? "you" : ""}"><td class="rank">${rank}.</td><td class="n">${esc(names[r.id] || r.id)}</td><td>${r.w + r.l}</td><td>${r.w}–${r.l}</td><td class="pts">${r.pts}</td></tr>`;
   });
   $("board").innerHTML = h + `</tbody></table>`;
+}
+
+// ---------------------------------------------------------------- kalendář
+const matchUrl = m => location.origin + location.pathname + "#m-" + m.id;
+function matchTimes(m){
+  const s = dateOf(m.date); s.setMinutes(m.start);
+  return [s, new Date(s.getTime() + m.dur * 60000)];
+}
+const utcStamp = d => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+function calText(m){
+  const names = allNames();
+  const title = "🎾 Padel" + (m.venue ? " · " + m.venueName : "");
+  const desc = `Hráči: ${m.players.map(id => names[id] || id).join(", ")}${m.players.length < 4 ? ` (chybí ${4 - m.players.length})` : ""}`
+    + (m.booked ? `\nKurt zarezervoval(a): ${names[m.booked] || "někdo"}` : "\nKurt zatím není zarezervovaný.")
+    + `\n\nZápas v appce: ${matchUrl(m)}` + (m.url ? `\nRezervace: ${m.url}` : "");
+  const v = courts && m.venue ? courts.venues.find(x => x.id === m.venue) : null;
+  const loc = m.venue ? [m.venueName, v && v.area].filter(Boolean).join(", ") : "";
+  return {title, desc, loc};
+}
+function downloadIcs(m){
+  const [s, e] = matchTimes(m), {title, desc, loc} = calText(m);
+  const esc2 = t => t.replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+  const ics = [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//padlon//cs", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    `UID:${m.id}@padlon`, `DTSTAMP:${utcStamp(new Date())}`, `DTSTART:${utcStamp(s)}`, `DTEND:${utcStamp(e)}`,
+    `SUMMARY:${esc2(title)}`, `DESCRIPTION:${esc2(desc)}`, ...(loc ? [`LOCATION:${esc2(loc)}`] : []), `URL:${matchUrl(m)}`,
+    "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:Padel za hodinu", "TRIGGER:-PT1H", "END:VALARM",
+    "END:VEVENT", "END:VCALENDAR", ""].join("\r\n");
+  const url = URL.createObjectURL(new Blob([ics], {type: "text/calendar;charset=utf-8"}));
+  const a = document.createElement("a");
+  a.href = url; a.download = `padel-${m.date}-${fmt(m.start).replace(":", "")}.ics`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+function googleCalUrl(m){
+  const [s, e] = matchTimes(m), {title, desc, loc} = calText(m);
+  const q = new URLSearchParams({action: "TEMPLATE", text: title, dates: `${utcStamp(s)}/${utcStamp(e)}`, details: desc, ctz: "Europe/Prague"});
+  if (loc) q.set("location", loc);
+  return "https://calendar.google.com/calendar/render?" + q.toString();
 }
 
 async function shareMatch(m){
