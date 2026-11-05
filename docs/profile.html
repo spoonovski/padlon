@@ -187,17 +187,21 @@ function render(){
   $("name").textContent = p.name;
   const {ratings, history} = S.computeElo(matches);
   const elo = S.ratingOf(ratings, id);
-  $("photo").innerHTML = S.avatar(p, 96, elo);
+  const played = !!history[id];
+  $("photo").innerHTML = S.avatar(p, 96, played ? elo : "unranked");
   $("photo-actions").hidden = !own;
   $("photo-remove").hidden = !own || !p.photo;
 
-  const ranked = roster.map(r => r.id).sort((a, b) => S.ratingOf(ratings, b) - S.ratingOf(ratings, a));
-  const rank = ranked.indexOf(id);
-  const t = S.tierOf(elo), next = [...S.TIERS].reverse().find(x => x.min > elo);
-  $("elo").innerHTML = `<div style="margin-bottom:4px">${S.tierBadge(elo, {big: true})}</div>ELO <b>${elo}</b> · ${rank + 1}. z ${ranked.length}${history[id] ? "" : " · zatím bez zápasu"}${next ? `<div class="next">Do úrovně ${next.name}: ${next.min - elo} bodů</div>` : ""}`;
+  if (!played){
+    $("elo").innerHTML = `<div style="margin-bottom:4px">${S.tierBadge(null, {big: true})}</div>ELO se ukáže po prvním zápase.`;
+  } else {
+    const ranked = Object.keys(history).filter(x => roster.some(r => r.id === x)).sort((a, b) => S.ratingOf(ratings, b) - S.ratingOf(ratings, a));
+    const rank = ranked.indexOf(id), next = [...S.TIERS].reverse().find(x => x.min > elo);
+    $("elo").innerHTML = `<div style="margin-bottom:4px">${S.tierBadge(elo, {big: true})}</div>ELO <b>${elo}</b> · ${rank + 1}. z ${ranked.length}${next ? `<div class="next">Do ${next.name}: ${next.min - elo} bodů</div>` : ""}`;
+  }
 
   const st = S.playerStats(id, matches);
-  $("tiles").innerHTML = [["main", elo, "ELO"], ["", st.played, plural(st.played, "zápas", "zápasy", "zápasů")], ["", `${st.w}–${st.l}`, "výhry–prohry"], ["", st.played ? st.pct + " %" : "–", "úspěšnost"]]
+  $("tiles").innerHTML = [["main", played ? elo : "?", "ELO"], ["", st.played, plural(st.played, "zápas", "zápasy", "zápasů")], ["", `${st.w}–${st.l}`, "výhry–prohry"], ["", st.played ? st.pct + " %" : "–", "úspěšnost"]]
     .map(([c, v, l]) => `<div class="tile ${c}"><b>${v}</b><span>${l}</span></div>`).join("");
 
   $("form").innerHTML = st.played

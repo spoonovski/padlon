@@ -1,29 +1,32 @@
 // Společné výpočty pro žebříček, profil hráče a návrh týmů.
 //
-// ELO: každý začíná na 1000. Síla týmu = průměr ELO hráčů. Vítězové dostanou
+// ELO: každý začíná na 700 (skrytě, do prvního zápasu je "Unranked"). Síla týmu = průměr ELO hráčů. Vítězové dostanou
 // K × (1 − očekávaná šance na výhru), poražení ztratí 75 % této částky.
 // Proti stejně silným je to +100 / −75, nad silnějšími víc, nad slabšími méně.
 // Protože se za prohru bere o něco méně, ELO s hraním postupně roste a vyšší
 // úrovně jsou dosažitelné. ELO nespadne pod 0.
 
-export const ELO_START = 1000;
+export const ELO_START = 700;
 export const ELO_K = 200;          // výhra nad stejně silnými = K/2 = +100
 export const ELO_LOSS = 0.75;      // prohra = 75 % toho, co by získal vítěz
 export const ELO_SCALE = 2000;     // jak moc rozdíl ELO mění šanci (vyšší = pozvolněji)
 
 // Úrovně podle ELO
 export const TIERS = [
-  {min: 1500, name: "Démon",          icon: "😈", bg: "linear-gradient(135deg,#0d0000 0%,#3a0006 45%,#b3001b 100%)", fg: "#ffd9dd", ring: "#c4001f", glow: "0 0 10px rgba(196,0,31,.55)"},
-  {min: 1300, name: "Růžový diamant", icon: "💗", bg: "linear-gradient(135deg,#ffe3f3 0%,#ff9fd2 50%,#ff5fae 100%)",  fg: "#5a0632", ring: "#ff6fb5", glow: "0 0 8px rgba(255,111,181,.45)"},
-  {min: 1100, name: "Diamant",        icon: "💎", bg: "linear-gradient(135deg,#e8fbff 0%,#9be7ff 50%,#4cc3f5 100%)",  fg: "#063a52", ring: "#4cc3f5", glow: "0 0 8px rgba(76,195,245,.45)"},
-  {min: 900,  name: "Zelená",         icon: "",   bg: "linear-gradient(135deg,#6fdc8c 0%,#24a148 100%)",              fg: "#03290f", ring: "#24a148", glow: "none"},
-  {min: 700,  name: "Zlatá",          icon: "",   bg: "linear-gradient(135deg,#ffe58a 0%,#f2b51c 55%,#c98a0b 100%)",  fg: "#3d2a00", ring: "#e0a313", glow: "none"},
-  {min: 500,  name: "Šedá",           icon: "",   bg: "linear-gradient(135deg,#e3e7eb 0%,#a7b0ba 100%)",              fg: "#2a3138", ring: "#9aa4ae", glow: "none"},
-  {min: 0,    name: "Hnědá",          icon: "",   bg: "linear-gradient(135deg,#b07a4a 0%,#7a4b25 100%)",              fg: "#fff3e6", ring: "#8b5a2b", glow: "none"},
+  {min: 1500, name: "Demonic",          icon: "😈", bg: "linear-gradient(135deg,#0d0000 0%,#3a0006 45%,#b3001b 100%)", fg: "#ffd9dd", ring: "#c4001f", glow: "0 0 10px rgba(196,0,31,.55)"},
+  {min: 1300, name: "Master", icon: "💗", bg: "linear-gradient(135deg,#ffe3f3 0%,#ff9fd2 50%,#ff5fae 100%)",  fg: "#5a0632", ring: "#ff6fb5", glow: "0 0 8px rgba(255,111,181,.45)"},
+  {min: 1100, name: "Diamond",        icon: "💎", bg: "linear-gradient(135deg,#e8fbff 0%,#9be7ff 50%,#4cc3f5 100%)",  fg: "#063a52", ring: "#4cc3f5", glow: "0 0 8px rgba(76,195,245,.45)"},
+  {min: 900,  name: "Emerald",         icon: "",   bg: "linear-gradient(135deg,#6fdc8c 0%,#24a148 100%)",              fg: "#03290f", ring: "#24a148", glow: "none"},
+  {min: 700,  name: "Gold",          icon: "",   bg: "linear-gradient(135deg,#ffe58a 0%,#f2b51c 55%,#c98a0b 100%)",  fg: "#3d2a00", ring: "#e0a313", glow: "none"},
+  {min: 500,  name: "Silver",           icon: "",   bg: "linear-gradient(135deg,#e3e7eb 0%,#a7b0ba 100%)",              fg: "#2a3138", ring: "#9aa4ae", glow: "none"},
+  {min: 0,    name: "Bronze",          icon: "",   bg: "linear-gradient(135deg,#b07a4a 0%,#7a4b25 100%)",              fg: "#fff3e6", ring: "#8b5a2b", glow: "none"},
 ];
 export const tierOf = elo => TIERS.find(t => elo >= t.min) || TIERS[TIERS.length - 1];
+// Hráč bez zápasu: ELO se neukazuje
+export const UNRANKED = {name: "Unranked", icon: "", bg: "repeating-linear-gradient(135deg,var(--busy) 0 6px,var(--paper) 6px 12px)", fg: "var(--muted)", ring: "var(--line)", glow: "none"};
 export function tierBadge(elo, {big = false, withElo = false, text = null} = {}){
-  const t = tierOf(elo);
+  const t = elo === null ? UNRANKED : tierOf(elo);
+  if (elo === null) withElo = false;
   const fs = big ? 14 : 11, pad = big ? "4px 11px" : "2px 7px";
   return `<span class="tier" title="${t.name}" style="display:inline-flex;align-items:center;gap:4px;white-space:nowrap;vertical-align:middle;border-radius:999px;padding:${pad};font-size:${fs}px;font-weight:750;line-height:1.3;background:${t.bg};color:${t.fg};box-shadow:${t.glow}">${text !== null ? text : (t.icon ? t.icon + " " : "") + t.name + (withElo ? " · " + elo : "")}</span>`;
 }
@@ -99,7 +102,7 @@ export function playerStats(id, matches){
 export function avatar(player, size = 32, elo = null){
   // s ELO dostane fotka rámeček v barvě úrovně
   if (elo !== null){
-    const t = tierOf(elo), w = Math.max(2, Math.round(size / 16));
+    const t = elo === "unranked" ? UNRANKED : tierOf(elo), w = Math.max(2, Math.round(size / 16));
     return `<span style="display:inline-grid;place-items:center;border-radius:50%;padding:${w}px;background:${t.bg};box-shadow:${t.glow};flex:none;vertical-align:middle">${avatar(player, size - 2 * w)}</span>`;
   }
   const name = (player && player.name) || "?";

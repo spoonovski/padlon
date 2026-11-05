@@ -99,6 +99,7 @@ a.plink:hover{text-decoration:underline}
 .board td.n{white-space:nowrap;max-width:200px}
 .tierline{margin:2px 0 0 38px}
 .board td.rank{width:46px;white-space:nowrap}
+.board tr.unr td{color:var(--muted)}
 .mv{display:block;font-size:12px;font-weight:800;line-height:1.2;margin-top:2px}
 .mv.up{color:#1f9d4c}
 .mv.down{color:var(--warn)}
@@ -200,11 +201,16 @@ function table(kind){
       }).sort((a,b) => b.elo - a.elo || (b.w + b.l) - (a.w + a.l) || a.label.localeCompare(b.label, "cs"));
     };
     const rows = rank(matches);
+    // bez zápasu = Unranked: dolů, bez čísla a bez pořadí
+    const ranked = rows.filter(r => r.w + r.l > 0), unranked = rows.filter(r => r.w + r.l === 0);
+    rows.length = 0; rows.push(...ranked, ...unranked);
     // pohyb v pořadí oproti stavu před posledním hracím dnem
     const lastDay = results().map(m => m.date).sort().pop();
     const before = lastDay ? rank(matches.filter(m => !S.isResult(m) || m.date < lastDay)) : rows;
     const prevPos = Object.fromEntries(before.map((r, i) => [r.key, i]));
-    rows.forEach((r, i) => { r.move = r.w + r.l === 0 ? "none" : prevPos[r.key] - i; });
+    const prevRanked = before.filter(r => r.w + r.l > 0);
+    const prevPos2 = Object.fromEntries(prevRanked.map((r, i) => [r.key, i]));
+    rows.forEach((r, i) => { r.unranked = r.w + r.l === 0; r.move = r.unranked ? "none" : r.key in prevPos2 ? prevPos2[r.key] - i : "new"; });
     return rows;
   }
   const st = {};
@@ -232,10 +238,10 @@ function table(kind){
 function render(){
   if (!S) return;
   for (const k of ["elo","pairs"]) $("tab-" + k).setAttribute("aria-selected", mode === k);
-  $("rule").innerHTML = mode === "elo" ? "Start <b>1000 ELO</b><br>výhra cca +100" : "Výhra <b>3 body</b><br>prohra 0";
+  $("rule").innerHTML = mode === "elo" ? "Výhra cca <b>+100</b><br>prohra cca −75" : "Výhra <b>3 body</b><br>prohra 0";
   $("board-sub").textContent = {
     pairs: "Stejná dvojice dohromady, bez ohledu na pořadí jmen.",
-    elo: "Pořadí podle ELO, každý začíná na 1000. Výhra nad stejně silnými +100, prohra −75, nad silnějšími víc, nad slabšími míň. Šipka ukazuje posun od posledního hracího dne.",
+    elo: "Pořadí podle ELO. Výhra nad stejně silnými +100, prohra −75, nad silnějšími víc, nad slabšími míň. ELO se ukáže po prvním zápase. Šipka ukazuje posun od posledního hracího dne.",
   }[mode];
   const rows = table(mode);
   const isMe = r => me && r.ids.includes(me);
@@ -244,20 +250,22 @@ function render(){
     $("podium").innerHTML = "";
     $("board").innerHTML = `<p class="empty">${mode === "pairs" ? "Zatím žádný výsledek zápasu dvojic." : "Zatím žádný zapsaný výsledek."} Výsledek zapíšeš po zápase v záložce <a href="match.html#odehrane">Zápasy</a>.</p>`;
   } else {
-    // pořadí se stejným skóre sdílí místo
+    // pořadí se stejným skóre sdílí místo (Unranked pořadí nemají)
     let rank = 0, prev = null;
-    rows.forEach((r, i) => { if (score(r) !== prev){ rank = i + 1; prev = score(r); } r.rank = rank; });
-    const top = rows.slice(0, 3);
+    rows.forEach((r, i) => { if (r.unranked){ r.rank = null; return; } if (score(r) !== prev){ rank = i + 1; prev = score(r); } r.rank = rank; });
+    const top = rows.filter(r => !r.unranked).slice(0, 3);
     $("podium").innerHTML = top.length >= 2 ? `<div class="podium">${[1,0,2].map(i => top[i] ? `
       <div class="step p${i+1} ${isMe(top[i]) ? "you" : ""}">${faces(top[i].ids, i === 0 ? 56 : 46, mode === "elo" ? top[i].elo : null)}<span class="who">${top[i].ids.map(link).join(" & ")}</span><span class="pts">${mode === "elo" ? S.tierBadge(top[i].elo, {text: (S.tierOf(top[i].elo).icon ? S.tierOf(top[i].elo).icon + " " : "") + top[i].elo}) : top[i].pts + " b."}</span><span class="block">${top[i].rank}</span></div>` : "<div></div>").join("")}</div>` : "";
     let h;
     if (mode === "elo"){
-      const mv = r => r.move === "none" ? `<span class="mv same" title="zatím bez zápasu">–</span>`
+      const mv = r => r.move === "none" ? "" : r.move === "new" ? `<span class="mv new" title="první zápas">nový</span>`
         : r.move > 0 ? `<span class="mv up" title="o ${r.move} ${r.move === 1 ? "místo" : r.move < 5 ? "místa" : "míst"} nahoru">▲${r.move}</span>`
         : r.move < 0 ? `<span class="mv down" title="o ${-r.move} ${r.move === -1 ? "místo" : r.move > -5 ? "místa" : "míst"} dolů">▼${-r.move}</span>`
         : `<span class="mv same" title="beze změny">=</span>`;
       h = `<table class="board"><thead><tr><th></th><th>Hráč</th><th>Zápasy</th><th class="pct">Poslední</th><th>ELO</th></tr></thead><tbody>`;
-      for (const r of rows) h += `<tr class="${isMe(r) ? "you" : ""}"><td class="rank">${r.rank}.${mv(r)}</td><td class="n">${faces(r.ids, 30, r.elo)} ${link(r.ids[0])}<div class="tierline">${S.tierBadge(r.elo)}</div></td><td>${r.w + r.l}</td><td class="pct ${r.last > 0 ? "up" : r.last < 0 ? "down" : ""}">${r.last > 0 ? "▲ +" + r.last : r.last < 0 ? "▼ " + r.last : "–"}</td><td class="pts">${r.elo}</td></tr>`;
+      for (const r of rows) h += r.unranked
+        ? `<tr class="${isMe(r) ? "you" : ""} unr"><td class="rank"></td><td class="n">${faces(r.ids, 30, "unranked")} ${link(r.ids[0])}<div class="tierline">${S.tierBadge(null)}</div></td><td>0</td><td class="pct">–</td><td class="pts">?</td></tr>`
+        : `<tr class="${isMe(r) ? "you" : ""}"><td class="rank">${r.rank}.${mv(r)}</td><td class="n">${faces(r.ids, 30, r.elo)} ${link(r.ids[0])}<div class="tierline">${S.tierBadge(r.elo)}</div></td><td>${r.w + r.l}</td><td class="pct ${r.last > 0 ? "up" : r.last < 0 ? "down" : ""}">${r.last > 0 ? "▲ +" + r.last : r.last < 0 ? "▼ " + r.last : "–"}</td><td class="pts">${r.elo}</td></tr>`;
       h += `</tbody></table><div class="tiers">${[...S.TIERS].reverse().map((t, i, a) => `<span>${S.tierBadge(t.min)} <small>${t.min}${a[i+1] ? "–" + (a[i+1].min - 1) : "+"}</small></span>`).join("")}</div><table hidden><tbody>`;
     } else {
       h = `<table class="board"><thead><tr><th></th><th>${mode === "solo" ? "Hráč" : "Dvojice"}</th><th>Zápasy</th><th>V–P</th><th class="pct">Úspěšnost</th><th>Body</th></tr></thead><tbody>`;
