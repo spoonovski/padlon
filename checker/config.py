@@ -72,6 +72,16 @@ VENUES = [
         "field_group": "3435e961-8ca6-4c14-94ef-a0a4e3fe4ca2",
     },
     {
+        "id": "padelautomat",
+        "name": "Padel Automat Čakovice",
+        "area": "Praha 9 – Čakovice",
+        "type": "isport",
+        "url": "https://padelautomat.isportsystem.cz/",
+        "base": "https://padelautomat.isportsystem.cz",
+        "sport": 1,
+        "lane_filter": "Indoor",   # venkovní kurt přeskočit
+    },
+    {
         "id": "pisecna",
         "name": "Písečná (kryté kurty)",
         "area": "Praha 8 – Troja",

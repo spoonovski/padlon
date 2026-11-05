@@ -4,7 +4,7 @@ Každých ~10 minut zkontroluje obsazenost krytých padelových kurtů v Praze,
 ukáže ji na webu (funguje jako appka na iPhonu) a pošle zprávu na Telegram,
 když se uvolní něco, co bylo obsazené, v tvých časech.
 
-**Sledovaná centra:** OnePadel Zličín, Padel Powers Smíchov, Padel Džus Hostivař,
+**Sledovaná centra:** OnePadel Zličín, Padel Powers Smíchov, Padel Džus Hostivař, Padel Automat Čakovice,
 Padelmanie, Padel Neride, Písečná (jen 2 zastřešené kurty).
 
 **Tvoje časy:** Po, Út, Čt, Pá 18–22 · So, Ne kdykoliv · středa ne ·
@@ -94,10 +94,11 @@ Nepotřebuje žádné knihovny, stačí Python 3.10+.
 | Padelmanie | Reservanto | půlhodinová mřížka po kurtech |
 | Neride | Sportelo | rezervace po kurtech (GraphQL) |
 | Písečná | Playtomic | volné sloty, jen zastřešené kurty 2 a 3 |
+| Padel Automat | iSportSystem | HTML rozvrh po půlhodinách, 2 kryté kurty, rezervace 7 dní dopředu |
 
 **Nepřidané:** Padel Club Spoje (na Playtomicu nenabízí žádné termíny),
 SK Slavia Padel (bez přihlášení ukazuje jen dnešek), Sky Sport City (padel jen venku),
-Padel Automat Čakovice, Císařská louka a FOR Padel Zdiměřice (dají se doplnit).
+Císařská louka a FOR Padel Zdiměřice (dají se doplnit).
 
 ---
 

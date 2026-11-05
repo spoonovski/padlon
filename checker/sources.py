@@ -336,7 +336,124 @@ def playtomic(v):
     return rows
 
 
+# ------------------------------------------------------------- iSportSystem
+# Padel Automat: server vrací HTML rozvrh na 7 dní. Každá buňka = 30 min,
+# "Volno" = volné, "povolená pouze N dnů dopředu" = zatím neznámé.
+
+class _ISport(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.tables, self.day, self.row, self.cell, self.text = [], None, None, None, None
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if tag == "h3":
+            self.text = ""
+        elif tag == "table":
+            self.tables.append({"day": self.day, "n": 0, "open": None, "lanes": []})
+        elif tag == "tr" and self.tables:
+            cls = a.get("class") or ""
+            self.row = cls
+            if cls.startswith("trSchemaLane_"):
+                self.tables[-1]["lanes"].append({"name": "", "cells": []})
+        elif tag == "td" and self.tables and self.row is not None:
+            t = self.tables[-1]
+            if self.row == "hidden":
+                t["n"] += 1
+            elif self.row == "times" and t["open"] is None:
+                self.text = ""
+            elif self.row.startswith("trSchemaLane_"):
+                t["lanes"][-1]["cells"].append([int(a.get("colspan") or 1), a.get("title") or ""])
+        elif tag == "a" and self.row and self.row.startswith("trSchemaLane_") and self.tables:
+            cells = self.tables[-1]["lanes"][-1]["cells"]
+            if cells and not cells[-1][1]:
+                cells[-1][1] = a.get("title") or ""
+        elif tag == "span" and self.row and self.row.startswith("trSchemaLane_"):
+            self.text = ""
+
+    def handle_data(self, data):
+        if self.text is not None:
+            self.text += data
+
+    def handle_endtag(self, tag):
+        if self.text is None:
+            return
+        txt = self.text.strip()
+        if tag == "h3":
+            self.day = txt; self.text = None
+        elif tag == "td" and self.row == "times" and self.tables and self.tables[-1]["open"] is None:
+            self.tables[-1]["open"] = txt; self.text = None
+        elif tag == "span" and self.row and self.row.startswith("trSchemaLane_"):
+            lane = self.tables[-1]["lanes"][-1]
+            if not lane["name"]:
+                lane["name"] = txt
+            self.text = None
+
+
+def parse_isport(html, want_dates, ref_date):
+    """-> {lane_name: {ymd: (free_intervals, opening)}}"""
+    p = _ISport()
+    p.feed(html)
+    out = {}
+    for t in p.tables:
+        m = re.search(r"(\d{1,2})\.(\d{1,2})\.", t["day"] or "")
+        if not m or not t["open"] or not t["n"]:
+            continue
+        day, month = int(m.group(1)), int(m.group(2))
+        year = ref_date.year + (1 if month < ref_date.month - 6 else 0)
+        ymd = f"{year:04d}-{month:02d}-{day:02d}"
+        if ymd not in want_dates:
+            continue
+        o = hm(t["open"])
+        for lane in t["lanes"]:
+            free, known = [], []
+            pos = o
+            for span, title in lane["cells"]:
+                st, en = pos, pos + 30 * span
+                pos = en
+                if "povolen" in title:          # ještě nejde rezervovat
+                    continue
+                known.append((st, en))
+                if title.rstrip().endswith("Volno"):
+                    if free and free[-1][1] == st:
+                        free[-1] = (free[-1][0], en)
+                    else:
+                        free.append((st, en))
+            opening = (min(k[0] for k in known), max(k[1] for k in known)) if known else None
+            out.setdefault(lane["name"], {})[ymd] = (free, opening)
+    return out
+
+
+def isport(v):
+    s = Session()
+    base = v["base"]
+    s.get(base + "/")
+    ds = days()
+    want = {d.isoformat() for d in ds}
+    lanes = {}
+    for start in (ds[0], ds[0] + timedelta(days=7)):
+        html = s.post(base + "/ajax/ajax.schema.php", headers={"X-Requested-With": "XMLHttpRequest", "Referer": base + "/"},
+                      form={"id_sport": v.get("sport", 1), "day": start.day, "month": start.month, "year": start.year,
+                            "event": "changeDate", "timetableWidth": 656, "noticeCheckRequested": 0,
+                            "noticeCheck": 0, "idNoticeCheck": 0})
+        for name, per in parse_isport(html, want, ds[0]).items():
+            lanes.setdefault(name, {}).update(per)
+    if not lanes:
+        raise RuntimeError("iSportSystem: v odpovědi chybí rozvrh")
+    rows = []
+    for name, per in lanes.items():
+        if v.get("lane_filter") and v["lane_filter"].lower() not in name.lower():
+            continue
+        cells = {}
+        for d in ds:
+            ymd = d.isoformat()
+            free, opening = per.get(ymd, ([], None))
+            cells[ymd] = from_free_intervals(d, free, opening) if opening else "." * len(from_starts({}, None))
+        rows.append({"id": name, "name": name.replace("Indoor kurt", "Kurt").strip(), "cells": cells})
+    return rows
+
+
 FETCHERS = {
     "courtyone": courtyone, "padelos": padelos, "bookaball": bookaball,
-    "reservanto": reservanto, "sportelo": sportelo, "playtomic": playtomic,
+    "reservanto": reservanto, "sportelo": sportelo, "playtomic": playtomic, "isport": isport,
 }
