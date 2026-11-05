@@ -38,7 +38,7 @@ service cloud.firestore {
     function validMatch(d) {
       return d.keys().hasOnly(['date', 'start', 'dur', 'venue', 'venueName', 'url',
                'players', 'names', 'invited', 'booked', 'created', 'by', 'winners', 'losers', 'score',
-               'price', 'priceMode', 'qr', 'paid', 'pos', 'chatN', 'closed', 'holds'])
+               'price', 'priceMode', 'qr', 'paid', 'pos', 'chatN', 'closed', 'holds', 'winSide'])
         && (!('winners' in d) || (d.winners is list && d.winners.size() <= 2))
         && (!('losers' in d) || (d.losers is list && d.losers.size() <= 2))
         && (!('score' in d) || shortStr(d.score, 30))
@@ -52,13 +52,31 @@ service cloud.firestore {
         && (d.get('pos', {}) is map && d.get('pos', {}).size() <= 12)
         && (d.get('chatN', 0) is int)
         && (d.get('closed', false) is bool)
-        && (d.get('holds', []) is list && d.get('holds', []).size() <= 3);
+        && d.get('winSide', null) in [null, 'A', 'B']
+        // držená místa: mapa {uid nebo any0..any2: {by, name, pos}}; hráči + držená místa nejvýš 4
+        && (d.get('holds', {}) is list
+            || (d.get('holds', {}) is map && d.get('holds', {}).size() <= 3
+                && d.players.size() + d.get('holds', {}).size() <= 4));
+    }
+    function holdsOf(d) { return d.get('holds', {}) is map ? d.get('holds', {}) : {}; }
+    // Hráč, který se přidává, smí z držených míst odebrat jen to svoje nebo jedno bez jména.
+    // Měnit držená místa jinak smí jen hráči zápasu (a každý může zrušit to, co je drženo pro něj).
+    function holdsOk() {
+      let ch = holdsOf(request.resource.data).diff(holdsOf(resource.data));
+      let joining = (request.auth.uid in request.resource.data.players) && !(request.auth.uid in resource.data.players);
+      return joining
+        ? (ch.addedKeys().size() == 0 && ch.changedKeys().size() == 0 && ch.removedKeys().size() <= 1
+           && ch.removedKeys().hasOnly([request.auth.uid, 'any0', 'any1', 'any2'])
+           && (ch.removedKeys().size() == 1 || !(request.auth.uid in holdsOf(resource.data))))
+        : (ch.affectedKeys().size() == 0
+           || request.auth.uid in resource.data.players
+           || (ch.affectedKeys().hasOnly([request.auth.uid]) && ch.addedKeys().size() == 0 && ch.changedKeys().size() == 0));
     }
     match /matches/{id} {
       allow read: if signedIn();
       allow create: if isPlayer() && validMatch(request.resource.data)
         && request.resource.data.get('booked', null) in [null, request.auth.uid];
-      allow update: if isPlayer() && validMatch(request.resource.data)
+      allow update: if isPlayer() && validMatch(request.resource.data) && holdsOk()
         // rezervujícím se může označit jen každý sám (nebo rezervaci zrušit)
         && (request.resource.data.get('booked', null) == resource.data.get('booked', null)
             || request.resource.data.get('booked', null) == null

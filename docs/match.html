@@ -237,6 +237,11 @@ table.board{width:100%;border-collapse:collapse;font-size:15px}
 .pay-who span,.pay-who a{padding:3px 10px;background:rgba(255,255,255,.07);border-radius:999px;color:var(--muted)}
 .pay-who .ok{background:rgba(212,255,58,.16);color:var(--ball-3);font-weight:700}
 .payform{width:100%}
+dialog.confirm-dlg{border:0;padding:20px;background:var(--glass, #0d2047);color:#fff;max-width:min(92vw,380px)}
+dialog.confirm-dlg::backdrop{background:rgba(3,10,25,.8)}
+dialog.confirm-dlg p{margin:0 0 16px;font-size:16px;line-height:1.4}
+.confirm-actions{display:flex;gap:8px;flex-wrap:wrap}
+dialog.confirm-dlg .btn.danger,dialog.confirm-dlg .btn.danger:hover{background:#ff4d5e !important;color:#fff !important}
 dialog.qr-dlg{border:0;padding:16px;background:#fff;color:#06142f;border-radius:8px;text-align:center;max-width:min(92vw,440px)}
 dialog.qr-dlg::backdrop{background:rgba(3,10,25,.8)}
 dialog.qr-dlg img{width:100%;height:auto;display:block}
@@ -344,6 +349,8 @@ a.btn{text-decoration:none;display:inline-block}
   </div>
 </div>
 
+<dialog id="confirm-dlg" class="confirm-dlg" aria-labelledby="confirm-txt"><p id="confirm-txt"></p>
+  <form method="dialog" class="confirm-actions"><button class="btn danger" value="ok" id="confirm-ok">Smazat</button><button class="btn ghost" value="no" autofocus>Zpět</button></form></dialog>
 <dialog id="qr-dlg" class="qr-dlg" aria-label="QR kód pro platbu">
   <img id="qr-img" alt="QR kód pro platbu">
   <p id="qr-cap"></p>
@@ -699,7 +706,7 @@ function renderMatches(){
         ${inIt && m.venue && !m.booked ? `<button class="btn ball small" data-book type="button">Zarezervoval jsem</button>` : ""}
         ${m.booked === me.id ? `<button class="btn ghost small" data-unbook type="button">Zrušit rezervaci</button>` : ""}
         ${chatButton(m)}
-        <button class="btn ghost small tg" data-plan type="button" aria-pressed="${!planHidden.has(m.id)}"><span class="knob" aria-hidden="true"></span>Pozice</button>
+        ${planToggle(m)}
         <button class="btn ghost small" data-share type="button">Poslat partě</button>
         <button class="btn ghost small" data-cal type="button" aria-expanded="false">Do kalendáře</button>
         ${m.by === me.id || !m.players.length ? `<button class="linkbtn" data-delete type="button">Smazat</button>` : ""}
@@ -728,7 +735,13 @@ function renderMatches(){
       planShown.has(m.id) ? planShown.delete(m.id) : planShown.add(m.id); savePlanShown(); renderMatches();
     };
     wireChat(el, m);
-    act("[data-delete]", () => api.deleteMatch(m.id));
+    const del = el.querySelector("[data-delete]");
+    if (del) del.onclick = async () => {
+      const ok = await confirmBox(`Opravdu smazat zápas ${dayLabel(m.date)} ${fmt(m.start)} (${m.venueName || ""})? Smaže se i chat a nejde to vrátit.`, "Smazat zápas");
+      if (!ok) return;
+      del.disabled = true;
+      try { await api.deleteMatch(m.id); } catch(e){ del.disabled = false; showError("Zápas se nepodařilo smazat: " + e.message); }
+    };
     const vs = el.querySelector("[data-venue]");
     if (vs) vs.onchange = async () => {
       const v = venueList().find(x => x.id === vs.value); if (!v) return;
@@ -749,13 +762,20 @@ function renderMatches(){
 const ended = m => { const d = dateOf(m.date); d.setMinutes(m.start + m.dur); return d <= new Date(); };
 const allNames = () => { const n = Object.fromEntries(players().map(p => [p.id, p.name])); for (const m of matches) Object.assign(n, m.names || {}); return n; };
 let resultOpen = null, resultDraft = null;
+const planToggle = m => `<button class="btn ghost small tg" data-plan type="button" aria-pressed="${!planHidden.has(m.id)}"><span class="knob" aria-hidden="true"></span>Pozice</button>`;
 
 // ---------------------------------------------------------------- držená místa
-// m.holds = [{by, for, name, pos}]: hráč zápasu drží místo pro konkrétního registrovaného hráče
-// (for = jeho uid) nebo pro kohokoliv domluveného (for = null). pos = pozice na kurtu nebo null.
-const holdsOf = m => (m.holds || []).filter(h => !h.for || !m.players.includes(h.for)).slice(0, Math.max(0, 4 - m.players.length));
-const freeSeats = m => 4 - m.players.length - holdsOf(m).length;
+// m.holds = {klíč: {by, name, pos}}: hráč zápasu drží místo. Klíč je uid konkrétního registrovaného
+// hráče, nebo "any0".."any2" pro kohokoliv domluveného. pos = pozice na kurtu nebo null.
+// Firestore pravidla hlídají, že se cizí podržené místo nedá obsadit (viz firestore.rules).
+const ANY = ["any0", "any1", "any2"];
+const holdsMap = m => m.holds && typeof m.holds === "object" && !Array.isArray(m.holds) ? m.holds : {};
+const holdsOf = m => Object.entries(holdsMap(m)).sort(([a],[b]) => a.localeCompare(b))
+  .map(([key, v]) => ({key, for: ANY.includes(key) ? null : key, by: v.by, name: v.name || null, pos: v.pos ?? null}))
+  .filter(h => !h.for || !m.players.includes(h.for));
+const freeSeats = m => 4 - m.players.length - Object.keys(holdsMap(m)).length;
 const myHold = m => holdsOf(m).find(h => h.for === me.id);
+const holdsWithout = (m, key) => { const o = {...holdsMap(m)}; delete o[key]; return o; };
 // smí se přidat (a případně na pozici k)? Vrátí update pro Firestore, nebo null
 function joinUpdate(m, k = null){
   if (m.players.includes(me.id) || m.players.length >= 4) return null;
@@ -769,10 +789,17 @@ function joinUpdate(m, k = null){
   if (!use && freeSeats(m) <= 0) use = hs.find(h => !h.for);   // jen domluvený bez jména
   if (!use && freeSeats(m) <= 0) return null;
   const upd = {players: [...m.players, me.id], [`names.${me.id}`]: me.name};
-  if (use) upd.holds = (m.holds || []).filter(h => h !== use);
-  const pk = k !== null ? k : use && use.pos !== null && use.pos !== undefined ? use.pos : null;
+  if (use) upd.holds = holdsWithout(m, use.key);
+  const pk = k !== null ? k : use && use.pos !== null ? use.pos : null;
   if (pk !== null && !posMap(m)[pk]) upd[`pos.${me.id}`] = pk;
   return upd;
+}
+// potvrzovací okno; vrací true, když hráč potvrdí
+function confirmBox(text, okLabel = "Smazat"){
+  const d = $("confirm-dlg");
+  $("confirm-txt").textContent = text; $("confirm-ok").textContent = okLabel;
+  d.returnValue = "";
+  return new Promise(res => { d.onclose = () => res(d.returnValue === "ok"); d.showModal(); });
 }
 let holdOpen = null;                                   // {id, pos} otevřený výběr, pro koho držet
 function holdForm(m){
@@ -781,7 +808,8 @@ function holdForm(m){
   const opts = players().filter(p => !taken.has(p.id)).sort((a,b) => a.name.localeCompare(b.name, "cs"));
   const where = holdOpen.pos !== null ? ` na pozici ${holdOpen.pos < 2 ? "Tým A" : "Tým B"} · ${SIDE[holdOpen.pos]}` : "";
   return `<div class="holdform"><select data-hold-who aria-label="Pro koho držet místo${where}">
-      <option value="">Kdokoliv domluvený (bez jména)</option>
+      <option value="" disabled selected>Vyber, pro koho…</option>
+      <option value="*">Kdokoliv domluvený (bez jména)</option>
       ${opts.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}
     </select><button class="btn small" data-hold-save type="button">Držet místo${where ? " " + esc(SIDE[holdOpen.pos].toLowerCase()) : ""}</button>
     <button class="btn ghost small" data-hold-cancel type="button">Zrušit</button></div>`;
@@ -790,17 +818,20 @@ function wireHolds(el, m){
   el.querySelectorAll("[data-hold-open]").forEach(b => b.onclick = () => { holdOpen = {id: m.id, pos: null}; renderMatches(); });
   el.querySelectorAll("[data-hold-del]").forEach(b => b.onclick = async () => {
     const h = holdsOf(m)[+b.dataset.holdDel]; b.disabled = true;
-    try { await api.updateMatch(m.id, {holds: (m.holds || []).filter(x => x !== h)}); } catch(e){ b.disabled = false; showError("Rezervaci místa se nepodařilo zrušit: " + e.message); }
+    try { await api.updateMatch(m.id, {holds: holdsWithout(m, h.key)}); } catch(e){ b.disabled = false; showError("Rezervaci místa se nepodařilo zrušit: " + e.message); }
   });
   const c = el.querySelector("[data-hold-cancel]"); if (c) c.onclick = () => { holdOpen = null; renderMatches(); };
   const sv = el.querySelector("[data-hold-save]");
   if (sv) sv.onclick = async () => {
     const who = el.querySelector("[data-hold-who]").value, p = players().find(x => x.id === who);
+    if (!who){ el.querySelector("[data-hold-who]").focus(); return; }
     if (freeSeats(m) <= 0) return;
     const pos = holdOpen.pos;
-    const h = {by: me.id, for: p ? p.id : null, name: p ? p.name : null, pos: pos !== null && !posMap(m)[pos] && !holdsOf(m).some(x => x.pos === pos) ? pos : null};
+    const cur = holdsMap(m), key = p ? p.id : ANY.find(k => !(k in cur));
+    if (!key) return;
+    const h = {by: me.id, name: p ? p.name : null, pos: pos !== null && !posMap(m)[pos] && !holdsOf(m).some(x => x.pos === pos) ? pos : null};
     sv.disabled = true;
-    try { await api.updateMatch(m.id, {holds: [...holdsOf(m), h]}); holdOpen = null; renderMatches(); }
+    try { await api.updateMatch(m.id, {holds: {...cur, [key]: h}}); holdOpen = null; renderMatches(); }
     catch(e){ sv.disabled = false; showError("Místo se nepodařilo podržet: " + e.message); }
   };
 }
@@ -819,7 +850,7 @@ function teamsFromPos(m){
   if ([0,1,2,3].every(k => at[k])) return {t1: [at[0], at[1]], t2: [at[2], at[3]]};
   return null;
 }
-function courtPlan(m){
+function courtPlan(m, played = false){
   const at = posMap(m), inIt = m.players.includes(me.id);
   const spot = k => {
     const id = at[k];
@@ -827,6 +858,7 @@ function courtPlan(m){
       const mine = id === me.id;
       return `<button type="button" class="spot ${mine ? "you" : ""}" data-pos="${k}" ${mine ? 'title="Kliknutím uvolníš místo"' : "disabled"}><span class="nm">${esc(m.names[id] || id)}</span><span class="sd">${SIDE[k]}</span></button>`;
     }
+    if (played) return `<button type="button" class="spot" data-pos="${k}" ${inIt ? "" : "disabled"} aria-label="${k < 2 ? "Tým A" : "Tým B"}, ${SIDE[k]}"><span class="add">+</span><span class="sd">${SIDE[k]}</span></button>`;
     const h = holdsOf(m).find(x => x.pos === k);
     if (h){
       const can = !inIt && !!joinUpdate(m, k);
@@ -844,12 +876,26 @@ function courtPlan(m){
       <div class="half a">${spot(0)}${spot(1)}</div><div class="net"></div><div class="half b">${spot(3)}${spot(2)}</div>
     </div>${bench.length ? `<p class="bench">Bez místa: ${bench.map(id => plink(id, esc(m.names[id] || id))).join(", ")}</p>` : ""}</div>`;
 }
-function wirePlan(el, m){
+// po změně pozic u odehraného zápasu přepočítá vítěze/poražené podle strany, která vyhrála
+function withSides(m, upd){
+  if (!m.winSide) return upd;
+  const pos = {...(m.pos || {})};
+  for (const [k, v] of Object.entries(upd)) if (k.startsWith("pos.")) pos[k.slice(4)] = v;
+  const t = teamsFromPos({...m, pos});
+  if (t){ upd.winners = m.winSide === "A" ? t.t1 : t.t2; upd.losers = m.winSide === "A" ? t.t2 : t.t1; }
+  return upd;
+}
+function wirePlan(el, m, played = false){
   el.querySelectorAll(".plan [data-pos]").forEach(b => b.onclick = async () => {
     const k = +b.dataset.pos, at = posMap(m);
     b.disabled = true;
     try {
       const inIt = m.players.includes(me.id), placed = Object.values(at).includes(me.id);
+      if (played){
+        if (!inIt) return;
+        await api.updateMatch(m.id, withSides(m, {[`pos.${me.id}`]: at[k] === me.id ? null : k}));
+        return;
+      }
       if (at[k] === me.id) await api.updateMatch(m.id, {[`pos.${me.id}`]: null});
       else if (!at[k] && inIt && placed){
         // už stojím jinde: kliknutím na volné místo ho držím pro někoho dalšího
@@ -941,12 +987,14 @@ function renderPlayed(){
     if (m.winners){
       h += `<div class="match" data-id="${m.id}">${head}
         <p class="result">🏆 <b>${m.winners.map(id => plink(id, esc(names[id] || id))).join(" & ")}</b> porazili ${m.losers.map(id => plink(id, esc(names[id] || id))).join(" & ")}${m.score ? ` · ${esc(m.score)}` : ""}</p>
-        <div class="actions"><button class="linkbtn" data-result type="button">Opravit výsledek</button></div>
+        ${planHidden.has(m.id) ? "" : courtPlan(m, true)}
+        <div class="actions"><button class="linkbtn" data-result type="button">Opravit výsledek</button>${planToggle(m)}</div>
         ${resultOpen === m.id ? resultForm(m) : ""}${payBlock(m)}</div>`;
     } else {
       h += `<div class="match" data-id="${m.id}">${head}
         <p class="note" style="margin:6px 0 8px">Hráli: ${m.players.map(id => plink(id, esc(names[id] || id))).join(", ")}</p>
-        ${resultOpen === m.id ? resultForm(m) : `<div class="actions"><button class="btn ball small" data-result type="button">Zapsat výsledek</button><button class="linkbtn" data-skip type="button">Nehráli jsme</button></div>`}${payBlock(m)}</div>`;
+        ${planHidden.has(m.id) ? "" : courtPlan(m, true)}
+        ${resultOpen === m.id ? resultForm(m) : `<div class="actions"><button class="btn ball small" data-result type="button">Zapsat výsledek</button>${planToggle(m)}<button class="linkbtn" data-skip type="button">Nehráli jsme</button></div>`}${payBlock(m)}</div>`;
     }
   }
   $("played").innerHTML = h;
@@ -964,17 +1012,22 @@ function renderPlayed(){
     if (sk) sk.onclick = async () => { sk.disabled = true; try { await api.deleteMatch(m.id); } catch(e){ sk.disabled = false; showError("Smazání se nepovedlo: " + e.message); } };
     const f = el.querySelector(".form:not(.payform)"); if (f) wireResultForm(f, m);
     wirePay(el, m);
+    wirePlan(el, m, true);
+    const pt = el.querySelector("[data-plan]");
+    if (pt) pt.onclick = () => { planShown.has(m.id) ? planShown.delete(m.id) : planShown.add(m.id); savePlanShown(); renderPlayed(); };
   });
 }
 
 function resultForm(m){
-  const names = allNames(), d = resultDraft;
+  const names = allNames(), d = resultDraft, pt = teamsFromPos(m);
+  if (pt){ d.t1 = pt.t1.slice(); d.t2 = pt.t2.slice(); }
   const pool = [...new Set([...m.players, ...d.t1, ...d.t2, ...players().map(p => p.id)])];
   const chips = cls => pool.map(id => `<button type="button" class="${cls}" data-p="${id}" aria-pressed="${(cls === "t1" ? d.t1 : d.t2).includes(id)}">${esc(names[id] || id)}</button>`).join("");
   const label = t => t.length ? t.map(id => esc(names[id] || id)).join(" & ") : "?";
   return `<div class="form">
-    <label>Tým 1<div class="pick">${chips("t1")}</div></label>
-    <label>Tým 2<div class="pick">${chips("t2")}</div></label>
+    ${pt ? `<p class="note" style="margin:0">Dvojice podle pozic na kurtu: <b style="color:var(--ink)">Tým A</b> ${label(d.t1)}, <b style="color:var(--ink)">Tým B</b> ${label(d.t2)}. Změníš je přeskládáním pozic.</p>`
+      : `<label>Tým 1<div class="pick">${chips("t1")}</div></label>
+    <label>Tým 2<div class="pick">${chips("t2")}</div></label>`}
     <label>Kdo vyhrál?<div class="pick">
       <button type="button" data-win="1" aria-pressed="${d.win === 1}">${label(d.t1)}</button>
       <button type="button" class="t2" data-win="2" aria-pressed="${d.win === 2}">${label(d.t2)}</button></div></label>
@@ -1000,7 +1053,7 @@ function wireResultForm(f, m){
     if (!d.win) return msg.textContent = "Vyber, kdo vyhrál.";
     e.target.disabled = true;
     const winners = d.win === 1 ? d.t1 : d.t2, losers = d.win === 1 ? d.t2 : d.t1;
-    const names = allNames(), upd = {winners, losers, score: f.querySelector(".score").value.trim()};
+    const names = allNames(), upd = {winners, losers, score: f.querySelector(".score").value.trim(), winSide: teamsFromPos(m) ? (d.win === 1 ? "A" : "B") : null};
     for (const id of [...winners, ...losers]) if (!(m.names || {})[id]) upd[`names.${id}`] = names[id] || id;
     try { await api.updateMatch(m.id, upd); resultOpen = null; }
     catch(err){ e.target.disabled = false; msg.textContent = "Uložení selhalo: " + err.message; }
