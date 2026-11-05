@@ -712,7 +712,7 @@ function renderMatches(){
     wirePay(el, m);
     wirePlan(el, m);
     el.querySelector("[data-plan]").onclick = () => {
-      planHidden.has(m.id) ? planHidden.delete(m.id) : planHidden.add(m.id); savePlanHidden(); renderMatches();
+      planShown.has(m.id) ? planShown.delete(m.id) : planShown.add(m.id); savePlanShown(); renderMatches();
     };
     wireChat(el, m);
     act("[data-delete]", () => api.deleteMatch(m.id));
@@ -788,9 +788,10 @@ function wirePlan(el, m){
   });
 }
 
-// skryté půdorysy (pamatuje si prohlížeč, pro každý zápas zvlášť)
-const planHidden = new Set((() => { try { return JSON.parse(localStorage.getItem("padel-plan-hidden") || "[]"); } catch(e){ return []; } })());
-const savePlanHidden = () => { try { localStorage.setItem("padel-plan-hidden", JSON.stringify([...planHidden].slice(-50))); } catch(e){} };
+// půdorys je ve výchozím stavu skrytý; zapnuté si pamatuje prohlížeč, pro každý zápas zvlášť
+const planShown = new Set((() => { try { return JSON.parse(localStorage.getItem("padel-plan-shown") || "[]"); } catch(e){ return []; } })());
+const savePlanShown = () => { try { localStorage.setItem("padel-plan-shown", JSON.stringify([...planShown].slice(-50))); } catch(e){} };
+const planHidden = {has: id => !planShown.has(id)};
 // chat je u zápasu otevřený, dokud si ho hráč nezavře (zavřené si pamatuje prohlížeč)
 const chatClosed = new Set((() => { try { return JSON.parse(localStorage.getItem("padel-chat-closed") || "[]"); } catch(e){ return []; } })());
 const saveChatClosed = () => { try { localStorage.setItem("padel-chat-closed", JSON.stringify([...chatClosed].slice(-50))); } catch(e){} };
