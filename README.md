@@ -112,7 +112,8 @@ Data se ukládají do Firebase (zdarma, limit je pro partu nedosažitelný).
 1. Na **console.firebase.google.com** → **Create a project** (třeba `padlon`), Google Analytics můžeš vypnout.
 2. **Build → Firestore Database → Create database** → lokace `eur3 (europe-west)` → **Start in production mode**.
 3. Záložka **Rules** → vlož obsah souboru `firestore.rules` z tohoto repa → **Publish**.
-4. **Build → Authentication → Get started → Sign-in method → Anonymous → Enable → Save.**
+4. **Build → Authentication → Get started → Sign-in method → Email/Password → Enable → Save.**
+   Hráči se registrují jménem a heslem (e-mail se nezadává, appka si ho vytvoří ze jména).
 5. **Project settings** (ozubené kolo) → dole **Your apps → `</>` (Web)** → název třeba `web` → **Register app**.
    Zobrazí se `const firebaseConfig = { apiKey: ..., ... }`.
 6. Ten objekt vlož do `docs/firebase-config.js` místo `null`:
@@ -121,5 +122,5 @@ Data se ukládají do Firebase (zdarma, limit je pro partu nedosažitelný).
    ```
    Hodnoty nejsou tajné, chrání je pravidla z kroku 3.
 
-Kdo má odkaz, může zapisovat. Pro partu je to v pořádku, odkaz jen nešiř veřejně.
+Zapisovat může jen zaregistrovaný hráč a své volno a profil mění jen on sám. Zapomenuté heslo obnovit nejde (není kam poslat e-mail): smaž hráče ve Firebase → Authentication → Users a ať se zaregistruje znovu.
 

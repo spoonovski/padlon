@@ -4,24 +4,36 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function signedIn() { return request.auth != null; }
+    // přihlášený hráč (jméno + heslo), ne anonymní návštěvník
+    function isPlayer() { return signedIn() && request.auth.token.firebase.sign_in_provider == 'password'; }
     function shortStr(v, n) { return v is string && v.size() <= n; }
 
-    // Volno hráče na jeden den: {player, name, date, slots, updated}
+    // Profil hráče: {name, created}, mění ho jen on sám
+    match /players/{uid} {
+      allow read: if signedIn();
+      allow create, update: if isPlayer() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'created'])
+        && shortStr(request.resource.data.name, 24) && request.resource.data.name.size() > 0;
+      allow delete: if isPlayer() && request.auth.uid == uid;
+    }
+
+    // Volno hráče na jeden den: {player, name, date, slots, updated}, mění ho jen on sám
     match /availability/{id} {
       allow read: if signedIn();
-      allow write: if signedIn()
+      allow create, update: if isPlayer()
+        && request.resource.data.player == request.auth.uid
         && request.resource.data.keys().hasOnly(['player', 'name', 'date', 'slots', 'updated'])
-        && shortStr(request.resource.data.player, 40)
         && shortStr(request.resource.data.name, 24)
         && request.resource.data.date.matches('^\\d{4}-\\d{2}-\\d{2}$')
         && request.resource.data.slots.matches('^[01]{36}$')
-        && id == request.resource.data.player + '_' + request.resource.data.date;
+        && id == request.auth.uid + '_' + request.resource.data.date;
+      allow delete: if isPlayer() && resource.data.player == request.auth.uid;
     }
 
-    // Domluvený zápas
+    // Zápas: zakládají, přidávají se a zapisují výsledky přihlášení hráči
     match /matches/{id} {
       allow read: if signedIn();
-      allow create, update: if signedIn()
+      allow create, update: if isPlayer()
         && request.resource.data.keys().hasOnly(['date', 'start', 'dur', 'venue', 'venueName', 'url',
              'players', 'names', 'invited', 'booked', 'created', 'by', 'winners', 'losers', 'score'])
         && (!('winners' in request.resource.data) || (request.resource.data.winners is list && request.resource.data.winners.size() <= 2))
@@ -30,7 +42,7 @@ service cloud.firestore {
         && request.resource.data.players is list && request.resource.data.players.size() <= 4
         && request.resource.data.date.matches('^\\d{4}-\\d{2}-\\d{2}$')
         && request.resource.data.dur in [90, 120];
-      allow delete: if signedIn();
+      allow delete: if isPlayer();
     }
   }
 }
