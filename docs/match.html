@@ -664,7 +664,7 @@ function renderMatches(){
     h += `<div class="match" id="m-${m.id}" data-id="${m.id}">
       <div class="opt-head"><span class="opt-time">${fmt(m.start)}–${fmt(m.start + m.dur)}</span>${where}</div>
       <div class="slots4">${seats}</div>
-      ${courtPlan(m)}
+      ${planHidden.has(m.id) ? "" : courtPlan(m)}
       ${!full ? `<p class="note" style="margin:0 0 6px">${missing === 1 ? "Chybí 1 hráč" : `Chybí ${missing} hráči`}</p>` : teamsFromPos(m) ? "" : fairTeams(m)}
       ${invited.length ? `<p class="note" style="margin:0 0 6px">Můžou: ${invited.map(p => esc(p.name)).join(", ")}</p>` : ""}
       ${freeLine ? `<p class="note" style="margin:0 0 8px">${freeLine}</p>` : ""}
@@ -677,6 +677,7 @@ function renderMatches(){
         ${inIt && m.venue && !m.booked ? `<button class="btn ball small" data-book type="button">Zarezervoval jsem</button>` : ""}
         ${m.booked === me.id ? `<button class="btn ghost small" data-unbook type="button">Zrušit rezervaci</button>` : ""}
         ${chatButton(m)}
+        <button class="btn ghost small" data-plan type="button" aria-pressed="${!planHidden.has(m.id)}">${planHidden.has(m.id) ? "Ukázat pozice" : "Skrýt pozice"}</button>
         <button class="btn ghost small" data-share type="button">Poslat partě</button>
         <button class="btn ghost small" data-cal type="button" aria-expanded="false">Do kalendáře</button>
         ${m.by === me.id || !m.players.length ? `<button class="linkbtn" data-delete type="button">Smazat</button>` : ""}
@@ -700,6 +701,9 @@ function renderMatches(){
     act("[data-unbook]", () => api.updateMatch(m.id, {booked: null, qr: null, price: null, paid: []}));
     wirePay(el, m);
     wirePlan(el, m);
+    el.querySelector("[data-plan]").onclick = () => {
+      planHidden.has(m.id) ? planHidden.delete(m.id) : planHidden.add(m.id); savePlanHidden(); renderMatches();
+    };
     wireChat(el, m);
     act("[data-delete]", () => api.deleteMatch(m.id));
     const vs = el.querySelector("[data-venue]");
@@ -773,6 +777,9 @@ function wirePlan(el, m){
   });
 }
 
+// skryté půdorysy (pamatuje si prohlížeč, pro každý zápas zvlášť)
+const planHidden = new Set((() => { try { return JSON.parse(localStorage.getItem("padel-plan-hidden") || "[]"); } catch(e){ return []; } })());
+const savePlanHidden = () => { try { localStorage.setItem("padel-plan-hidden", JSON.stringify([...planHidden].slice(-50))); } catch(e){} };
 const chatOpen = new Set(), chatMsgs = {}, chatUnsub = {}, chatDraft = {};
 const seenKey = id => `padel-chat-seen-${me ? me.id : ""}-${id}`;
 const getSeen = id => { try { return +localStorage.getItem(seenKey(id)) || 0; } catch(e){ return 0; } };
