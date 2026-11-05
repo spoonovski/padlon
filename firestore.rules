@@ -38,7 +38,7 @@ service cloud.firestore {
     function validMatch(d) {
       return d.keys().hasOnly(['date', 'start', 'dur', 'venue', 'venueName', 'url',
                'players', 'names', 'invited', 'booked', 'created', 'by', 'winners', 'losers', 'score',
-               'price', 'priceMode', 'qr', 'paid'])
+               'price', 'priceMode', 'qr', 'paid', 'pos', 'chatN'])
         && (!('winners' in d) || (d.winners is list && d.winners.size() <= 2))
         && (!('losers' in d) || (d.losers is list && d.losers.size() <= 2))
         && (!('score' in d) || shortStr(d.score, 30))
@@ -48,7 +48,9 @@ service cloud.firestore {
         && (d.get('qr', null) == null
             || (d.qr is string && d.qr.size() < 300000 && d.qr.matches('^data:image/(png|jpeg);base64,.*')))
         && (d.get('price', null) == null || (d.price is number && d.price <= 100000))
-        && (d.get('paid', []) is list && d.get('paid', []).size() <= 4);
+        && (d.get('paid', []) is list && d.get('paid', []).size() <= 4)
+        && (d.get('pos', {}) is map && d.get('pos', {}).size() <= 12)
+        && (d.get('chatN', 0) is int);
     }
     match /matches/{id} {
       allow read: if signedIn();
@@ -65,6 +67,18 @@ service cloud.firestore {
             || request.auth.uid == resource.data.get('booked', null)
             || (request.resource.data.get('qr', null) == null && request.resource.data.get('price', null) == null));
       allow delete: if isPlayer();
+
+      // Chat zápasu: {uid, name, text, ts}, každý píše jen sám za sebe
+      match /chat/{msg} {
+        allow read: if signedIn();
+        allow create: if isPlayer()
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'text', 'ts'])
+          && request.resource.data.uid == request.auth.uid
+          && shortStr(request.resource.data.name, 24)
+          && shortStr(request.resource.data.text, 500) && request.resource.data.text.size() > 0
+          && request.resource.data.ts is int;
+        allow delete: if isPlayer() && resource.data.uid == request.auth.uid;
+      }
     }
   }
 }

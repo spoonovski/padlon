@@ -57,5 +57,11 @@ async function _connect(showError){
     addMatch: data => fs.addDoc(fs.collection(db, "matches"), data),
     updateMatch: (id, data) => fs.updateDoc(fs.doc(db, "matches", id), data),
     deleteMatch: id => fs.deleteDoc(fs.doc(db, "matches", id)),
+    // chat zápasu: matches/{id}/chat/{msg} = {uid, name, text, ts}
+    watchChat: (matchId, cb) => fs.onSnapshot(
+      fs.query(fs.collection(db, "matches", matchId, "chat"), fs.orderBy("ts"), fs.limitToLast(100)),
+      snap => cb(snap.docs.map(d => ({id: d.id, ...d.data()}))),
+      err => showError("Nepodařilo se načíst chat: " + err.message)),
+    addChat: (matchId, data) => fs.addDoc(fs.collection(db, "matches", matchId, "chat"), data),
   };
 }

@@ -141,6 +141,38 @@ table.who{border-collapse:separate;border-spacing:2px;font-variation-settings:"w
 .match:first-of-type{border-top:0;padding-top:2px}
 .match .when{font-size:13px;color:var(--muted)}
 .slots4{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+/* půdorys kurtu: vlevo tým A, vpravo tým B, síť uprostřed */
+.plan{display:grid;grid-template-columns:1fr 6px 1fr;aspect-ratio:2/1;max-width:420px;margin:8px 0 6px;
+  background:#1d4fd6;border:3px solid rgba(255,255,255,.85);position:relative}
+.plan .half{display:grid;grid-template-rows:1fr 1fr;position:relative}
+.plan .half::before{content:"";position:absolute;top:0;bottom:0;width:0;border-left:2px solid rgba(255,255,255,.8)}
+.plan .half.a::before{left:30%}.plan .half.b::before{right:30%}
+.plan .half::after{content:"";position:absolute;top:50%;height:0;border-top:2px solid rgba(255,255,255,.8)}
+.plan .half.a::after{left:30%;right:0}.plan .half.b::after{left:0;right:30%}
+.plan .net{background:repeating-linear-gradient(0deg,rgba(255,255,255,.9) 0 3px,rgba(255,255,255,.25) 3px 6px)}
+.plan .spot{position:relative;z-index:1;border:0;background:transparent;color:#fff;cursor:pointer;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:2px;font:inherit;padding:4px;min-width:0}
+.plan .spot .nm{font-weight:800;font-size:14px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  background:var(--ball-3);color:var(--ball-ink);padding:3px 9px}
+.plan .spot.you .nm{outline:2px solid #fff}
+.plan .spot .add{width:30px;height:30px;border-radius:50%;border:2px dashed rgba(255,255,255,.7);display:grid;place-items:center;font-weight:800;font-size:18px;line-height:1}
+.plan .spot .sd{font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.75}
+.plan .spot:disabled{cursor:default}
+.plan .team{position:absolute;bottom:100%;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding-bottom:2px}
+.plan .team.a{left:0}.plan .team.b{right:0}
+.plan-wrap{margin-top:18px}
+.bench{font-size:13px;color:var(--muted);margin:0 0 8px}
+/* chat zápasu */
+.chat{margin:10px 0 4px;background:rgba(255,255,255,.04);padding:10px}
+.chat-log{max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.chat-log .msg{max-width:85%;align-self:flex-start;background:rgba(255,255,255,.08);padding:6px 10px;font-size:14px;line-height:1.35;overflow-wrap:anywhere}
+.chat-log .msg.mine{align-self:flex-end;background:var(--ball-3);color:var(--ball-ink)}
+.chat-log .msg .meta{display:block;font-size:11px;opacity:.7;margin-bottom:1px}
+.chat-log .msg.mine .meta a{color:inherit}
+.chat-log .empty{font-size:13px;color:var(--muted);margin:0}
+.chat-form{display:flex;gap:6px}
+.chat-form input{flex:1;min-width:0}
+.chat-btn .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ball-3);margin-left:6px;vertical-align:middle}
 .seat{font-size:14px;font-weight:600;padding:5px 10px;border-radius:8px;background:var(--turf-1)}
 .seat.free{background:transparent;border:1px dashed var(--line);color:var(--muted);font-weight:500}
 .seat.you{background:var(--ball-3);color:var(--ball-ink)}
@@ -359,6 +391,8 @@ $("auth-login").onclick = () => window.padelOpenLogin && window.padelOpenLogin(f
 $("auth-signup").onclick = () => window.padelOpenLogin && window.padelOpenLogin(true);
 
 async function onUser(u){
+  for (const k of Object.keys(chatUnsub)){ chatUnsub[k](); delete chatUnsub[k]; }
+  chatOpen.clear(); for (const k of Object.keys(chatDraft)) delete chatDraft[k];
   if (!u){ me = null; $("app").hidden = true; $("auth").hidden = false; return; }
   // profil se po registraci může zapsat o chvilku později, jméno pak doplní watchPlayers
   let p = (roster || []).find(x => x.id === u.uid) || await api.getPlayer(u.uid).catch(() => null);
@@ -630,7 +664,8 @@ function renderMatches(){
     h += `<div class="match" id="m-${m.id}" data-id="${m.id}">
       <div class="opt-head"><span class="opt-time">${fmt(m.start)}–${fmt(m.start + m.dur)}</span>${where}</div>
       <div class="slots4">${seats}</div>
-      ${!full ? `<p class="note" style="margin:0 0 6px">${missing === 1 ? "Chybí 1 hráč" : `Chybí ${missing} hráči`}</p>` : fairTeams(m)}
+      ${courtPlan(m)}
+      ${!full ? `<p class="note" style="margin:0 0 6px">${missing === 1 ? "Chybí 1 hráč" : `Chybí ${missing} hráči`}</p>` : teamsFromPos(m) ? "" : fairTeams(m)}
       ${invited.length ? `<p class="note" style="margin:0 0 6px">Můžou: ${invited.map(p => esc(p.name)).join(", ")}</p>` : ""}
       ${freeLine ? `<p class="note" style="margin:0 0 8px">${freeLine}</p>` : ""}
       ${m.booked ? `<p class="booked" style="margin:0 0 8px">✓ Zarezervoval(a) ${plink(m.booked, esc(m.names[m.booked] || "někdo"))}</p>` : ""}
@@ -641,24 +676,31 @@ function renderMatches(){
         ${inIt && !m.venue && courts ? `<select class="inline-select" data-venue aria-label="Kde hrajeme"><option value="">Vybrat místo…</option>${venueList().map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join("")}</select>` : ""}
         ${inIt && m.venue && !m.booked ? `<button class="btn ball small" data-book type="button">Zarezervoval jsem</button>` : ""}
         ${m.booked === me.id ? `<button class="btn ghost small" data-unbook type="button">Zrušit rezervaci</button>` : ""}
+        ${chatButton(m)}
         <button class="btn ghost small" data-share type="button">Poslat partě</button>
         <button class="btn ghost small" data-cal type="button" aria-expanded="false">Do kalendáře</button>
         ${m.by === me.id || !m.players.length ? `<button class="linkbtn" data-delete type="button">Smazat</button>` : ""}
       </div>
+      ${chatPanel(m)}
       <div class="cal-links" hidden>
         <a class="court" data-ics href="#">Apple / Outlook</a>
         <a class="court" data-gcal href="#" target="_blank" rel="noopener">Google kalendář</a>
       </div></div>`;
   }
+  const ae = document.activeElement, focusChat = ae && ae.closest && ae.closest(".chat-form") ? ae.closest(".match").dataset.id : null;
+  const caret = focusChat ? ae.selectionStart : 0;
   $("matches").innerHTML = h;
+  if (focusChat){ const i = document.querySelector(`#m-${CSS.escape(focusChat)} .chat-form input`); if (i){ i.focus(); i.setSelectionRange(caret, caret); } }
   $("matches").querySelectorAll(".match").forEach(el => {
     const m = matches.find(x => x.id === el.dataset.id);
     const act = (sel, fn) => { const b = el.querySelector(sel); if (b) b.onclick = async () => { b.disabled = true; try { await fn(); } catch(e){ b.disabled = false; showError("Akce se nepovedla: " + e.message); } }; };
     act("[data-join]", () => api.updateMatch(m.id, {players: [...m.players, me.id].slice(0,4), [`names.${me.id}`]: me.name}));
-    act("[data-leave]", () => api.updateMatch(m.id, {players: m.players.filter(id => id !== me.id), ...(m.booked === me.id ? {booked: null, qr: null, price: null, paid: []} : {})}));
+    act("[data-leave]", () => api.updateMatch(m.id, {players: m.players.filter(id => id !== me.id), [`pos.${me.id}`]: null, ...(m.booked === me.id ? {booked: null, qr: null, price: null, paid: []} : {})}));
     act("[data-book]", () => api.updateMatch(m.id, {booked: me.id}));
     act("[data-unbook]", () => api.updateMatch(m.id, {booked: null, qr: null, price: null, paid: []}));
     wirePay(el, m);
+    wirePlan(el, m);
+    wireChat(el, m);
     act("[data-delete]", () => api.deleteMatch(m.id));
     const vs = el.querySelector("[data-venue]");
     if (vs) vs.onchange = async () => {
@@ -679,6 +721,114 @@ function renderMatches(){
 const ended = m => { const d = dateOf(m.date); d.setMinutes(m.start + m.dur); return d <= new Date(); };
 const allNames = () => { const n = Object.fromEntries(players().map(p => [p.id, p.name])); for (const m of matches) Object.assign(n, m.names || {}); return n; };
 let resultOpen = null, resultDraft = null;
+
+// ---------------------------------------------------------------- kurt a chat v zápase
+// Pozice na kurtu: m.pos = {uid: 0..3}. 0 = tým A levá (revés), 1 = tým A pravá (drive),
+// 2 = tým B levá, 3 = tým B pravá. Vlevo na půdorysu tým A, vpravo tým B.
+const SIDE = ["Revés", "Drive", "Revés", "Drive"];
+function posMap(m){
+  const at = {};
+  for (const [id, k] of Object.entries(m.pos || {})) if (k !== null && k >= 0 && k <= 3 && m.players.includes(id) && !(k in at)) at[k] = id;
+  return at;                                       // {pozice: uid}
+}
+function teamsFromPos(m){
+  const at = posMap(m);
+  if ([0,1,2,3].every(k => at[k])) return {t1: [at[0], at[1]], t2: [at[2], at[3]]};
+  return null;
+}
+function courtPlan(m){
+  const at = posMap(m), inIt = m.players.includes(me.id), full = m.players.length >= 4;
+  const spot = k => {
+    const id = at[k];
+    if (id){
+      const mine = id === me.id;
+      return `<button type="button" class="spot ${mine ? "you" : ""}" data-pos="${k}" ${mine ? 'title="Kliknutím uvolníš místo"' : "disabled"}><span class="nm">${esc(m.names[id] || id)}</span><span class="sd">${SIDE[k]}</span></button>`;
+    }
+    const can = inIt || !full;
+    return `<button type="button" class="spot" data-pos="${k}" ${can ? "" : "disabled"} aria-label="${k < 2 ? "Tým A" : "Tým B"}, ${SIDE[k]}"><span class="add">+</span><span class="sd">${SIDE[k]}</span></button>`;
+  };
+  const placed = new Set(Object.values(at));
+  const bench = m.players.filter(id => !placed.has(id));
+  // tým A stojí vlevo čelem k síti: jeho levá (revés) je nahoře. Tým B čelem doleva: jeho levá je dole.
+  return `<div class="plan-wrap"><div class="plan" role="group" aria-label="Kurt – vyber si stranu">
+      <span class="team a">Tým A</span><span class="team b">Tým B</span>
+      <div class="half a">${spot(0)}${spot(1)}</div><div class="net"></div><div class="half b">${spot(3)}${spot(2)}</div>
+    </div>${bench.length ? `<p class="bench">Bez místa: ${bench.map(id => plink(id, esc(m.names[id] || id))).join(", ")}</p>` : ""}</div>`;
+}
+function wirePlan(el, m){
+  el.querySelectorAll(".plan [data-pos]").forEach(b => b.onclick = async () => {
+    const k = +b.dataset.pos, at = posMap(m);
+    b.disabled = true;
+    try {
+      if (at[k] === me.id) await api.updateMatch(m.id, {[`pos.${me.id}`]: null});
+      else if (!at[k]){
+        const upd = {[`pos.${me.id}`]: k};
+        if (!m.players.includes(me.id)){
+          if (m.players.length >= 4) return;
+          upd.players = [...m.players, me.id]; upd[`names.${me.id}`] = me.name;
+        }
+        await api.updateMatch(m.id, upd);
+      }
+    } catch(e){ b.disabled = false; showError("Místo se nepodařilo uložit: " + e.message); }
+  });
+}
+
+const chatOpen = new Set(), chatMsgs = {}, chatUnsub = {}, chatDraft = {};
+const seenKey = id => `padel-chat-seen-${me ? me.id : ""}-${id}`;
+const getSeen = id => { try { return +localStorage.getItem(seenKey(id)) || 0; } catch(e){ return 0; } };
+const setSeen = (id, n) => { try { localStorage.setItem(seenKey(id), n); } catch(e){} };
+function chatButton(m){
+  const n = m.chatN || 0, unread = n > getSeen(m.id) && !chatOpen.has(m.id);
+  return `<button class="btn ghost small chat-btn" data-chat type="button" aria-expanded="${chatOpen.has(m.id)}">Chat${n ? " · " + n : ""}${unread ? '<span class="dot" aria-label="nové zprávy"></span>' : ""}</button>`;
+}
+function chatLog(m){
+  const list = chatMsgs[m.id];
+  if (!list) return `<p class="empty">Načítám…</p>`;
+  if (!list.length) return `<p class="empty">Zatím žádná zpráva. Napiš první.</p>`;
+  return list.map(x => {
+    const d = new Date(x.ts), mine = x.uid === me.id;
+    const t = `${d.getDate()}. ${d.getMonth()+1}. ${fmt(d.getHours()*60 + d.getMinutes())}`;
+    return `<div class="msg ${mine ? "mine" : ""}"><span class="meta">${mine ? "Ty" : plink(x.uid, esc(x.name || "?"))} · ${t}</span>${esc(x.text)}</div>`;
+  }).join("");
+}
+function chatPanel(m){
+  if (!chatOpen.has(m.id)) return "";
+  return `<div class="chat"><div class="chat-log" aria-live="polite">${chatLog(m)}</div>
+    <form class="chat-form"><input type="text" maxlength="500" placeholder="Napiš zprávu…" aria-label="Zpráva" value="${esc(chatDraft[m.id] || "")}"><button class="btn small" type="submit">Poslat</button></form></div>`;
+}
+function paintChat(id){
+  const el = document.querySelector(`#m-${CSS.escape(id)} .chat-log`), m = matches.find(x => x.id === id);
+  if (!el || !m) return;
+  el.innerHTML = chatLog(m); el.scrollTop = el.scrollHeight;
+  if (chatMsgs[id]) setSeen(id, Math.max(m.chatN || 0, chatMsgs[id].length));
+}
+function wireChat(el, m){
+  el.querySelector("[data-chat]").onclick = () => {
+    if (chatOpen.has(m.id)){ chatOpen.delete(m.id); if (chatUnsub[m.id]){ chatUnsub[m.id](); delete chatUnsub[m.id]; } }
+    else {
+      chatOpen.add(m.id);
+      chatUnsub[m.id] ||= api.watchChat(m.id, list => { chatMsgs[m.id] = list; paintChat(m.id); });
+      setSeen(m.id, m.chatN || 0);
+    }
+    renderMatches();
+    if (chatOpen.has(m.id)){ const i = document.querySelector(`#m-${CSS.escape(m.id)} .chat-form input`); if (i) i.focus(); }
+  };
+  const f = el.querySelector(".chat-form"); if (!f) return;
+  const inp = f.querySelector("input");
+  inp.oninput = () => { chatDraft[m.id] = inp.value; };
+  const log = el.querySelector(".chat-log"); log.scrollTop = log.scrollHeight;
+  f.onsubmit = async e => {
+    e.preventDefault();
+    const text = inp.value.trim(); if (!text) return;
+    inp.disabled = true;
+    try {
+      await api.addChat(m.id, {uid: me.id, name: me.name, text: text.slice(0, 500), ts: Date.now()});
+      chatDraft[m.id] = ""; inp.value = "";
+      api.updateMatch(m.id, {chatN: (m.chatN || 0) + 1}).catch(() => {});
+    } catch(err){ showError("Zprávu se nepodařilo poslat: " + err.message); }
+    inp.disabled = false; inp.focus();
+  };
+}
 
 function renderPlayed(){
   const names = allNames();
@@ -707,7 +857,8 @@ function renderPlayed(){
     if (r) r.onclick = () => {
       resultOpen = resultOpen === m.id ? null : m.id;
       const fair = !m.winners && S && m.players.length === 4 ? S.balanceTeams(m.players, S.computeElo(matches).ratings) : null;
-      resultDraft = {t1: (m.winners || (fair ? fair.t1 : m.players.slice(0,2))).slice(), t2: (m.losers || (fair ? fair.t2 : m.players.slice(2,4))).slice(), win: m.winners ? 1 : null, score: m.score || ""};
+      const pt = !m.winners ? teamsFromPos(m) : null;
+      resultDraft = {t1: (m.winners || (pt ? pt.t1 : fair ? fair.t1 : m.players.slice(0,2))).slice(), t2: (m.losers || (pt ? pt.t2 : fair ? fair.t2 : m.players.slice(2,4))).slice(), win: m.winners ? 1 : null, score: m.score || ""};
       renderPlayed();
     };
     const sk = el.querySelector("[data-skip]");
