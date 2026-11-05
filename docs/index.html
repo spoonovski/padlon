@@ -106,6 +106,8 @@ h1{
 
 /* ovládání mřížky */
 .viewseg{margin:0 0 14px}
+.seg.durseg{display:flex !important;flex-wrap:wrap;margin:0 0 14px !important;width:max-content;max-width:100%}
+.seg.durseg button{padding:7px 12px !important;font-size:14px !important}
 .bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 10px;flex-wrap:wrap}
 .bar h2{margin:0;font-size:20px;font-weight:700;font-variation-settings:"wdth" 110}
 .seg{display:inline-flex;background:var(--paper);border:1px solid var(--line);border-radius:9px;padding:2px}
@@ -314,6 +316,8 @@ body:not(.work) .work-only{display:none}
 const DOW = ["Ne","Po","Út","St","Čt","Pá","So"];
 const DOW_LONG = ["neděli","pondělí","úterý","středu","čtvrtek","pátek","sobotu"];
 let DATA = null, day = null, work = false;
+const SPLITS = [60, 90, 120, 180, 240];
+let split = (() => { try { const v = +localStorage.getItem("padel-split"); return SPLITS.includes(v) ? v : 0; } catch(e){ return 0; } })();
 let view = (() => { try { return localStorage.getItem("padel-view") === "grid" ? "grid" : "list"; } catch(e){ return "list"; } })();
 
 const hm = s => { const [h,m] = s.split(":").map(Number); return h*60+m; };
@@ -381,9 +385,42 @@ function blocksFor(ymd, c, single){
   return blocks;
 }
 
+// Souvislé volno na jednom kurtu: sjednocení volných úseků ze sousedních/překrývajících se začátků,
+// oříznuté na tvé časy a na "teď". Řádek "Kterýkoliv kurt" se neslučuje (může jít o různé kurty).
+const AVAIL = {"1": 60, "2": 90, "3": 120};
+function freeIntervals(ymd, c, single){
+  const out = [];
+  for (let i=0;i<c.length;i++){
+    const a = AVAIL[c[i]]; if (!a) continue;
+    const t = slotMin(i), last = out[out.length-1];
+    if (!single && last && t <= last.end) last.end = Math.max(last.end, t + a);
+    else out.push({start: t, end: t + a});
+  }
+  const now = new Date(), today = dateOf(ymd).toDateString() === now.toDateString();
+  const nowMin = today ? Math.ceil((now.getHours()*60 + now.getMinutes()) / 30) * 30 : -1;
+  const res = [];
+  for (const iv of out) for (const [s,e] of windowsFor(ymd)){
+    const a = Math.max(iv.start, s, nowMin), b = Math.min(iv.end, e);
+    if (b > a) res.push({start: a, end: b});
+  }
+  return res;
+}
+// rozdělení volna na sloty pevné délky (20:00–22:00, 22:00–24:00 …)
+function slotsFor(ymd, c, single, D){
+  const ivs = freeIntervals(ymd, c, single), out = [];
+  if (!single){
+    for (const iv of ivs) for (let k = iv.start; k + D <= iv.end; k += D) out.push({start: k, end: k + D});
+  } else {
+    let lastEnd = -1;
+    for (const iv of ivs.sort((x,y) => x.start - y.start)) if (iv.start >= lastEnd && iv.end - iv.start >= D){ out.push({start: iv.start, end: iv.start + D}); lastEnd = iv.start + D; }
+  }
+  return out.map(b => ({...b, long: D >= 120}));
+}
+const picksFor = (ymd, r) => split ? slotsFor(ymd, r.cells[ymd], r.id === "any", split) : blocksFor(ymd, r.cells[ymd], r.id === "any");
+
 function countPicks(ymd){
   let n = 0;
-  for (const v of DATA.venues) for (const r of v.rows) if (r.cells[ymd]) n += blocksFor(ymd, r.cells[ymd], r.id === "any").length;
+  for (const v of DATA.venues) for (const r of v.rows) if (r.cells[ymd]) n += picksFor(ymd, r).length;
   return n;
 }
 
@@ -411,19 +448,24 @@ function renderPicks(){
   const ws = windowsFor(day);
   const wtxt = ws.length === 1 && ws[0][0] === 0 && ws[0][1] >= 1440 ? "kdykoliv během dne"
     : "v čase " + ws.map(([s,e]) => e >= 1440 ? `od ${fmt(s)}` : `${fmt(s)}–${fmt(e)}`).join(" a ");
-  let html = `<h2>${title}</h2><p class="sub">Volno aspoň na 90 minut ${wtxt}.</p>`, any = false;
+  const seg = `<div class="seg durseg" role="group" aria-label="Délka slotu">${[0, ...SPLITS].map(v => `<button type="button" data-split="${v}" aria-pressed="${v === split}">${v ? v + "′" : "Vše"}</button>`).join("")}</div>`;
+  let html = `<h2>${title}</h2><p class="sub">${split ? `Volné sloty po ${split} minutách` : "Volno aspoň na 90 minut"} ${wtxt}.</p>${seg}`, any = false;
   for (const v of DATA.venues){
     let vh = "";
     for (const r of v.rows){
       const c = r.cells[day]; if (!c) continue;
-      const blocks = blocksFor(day, c, r.id === "any");
+      const blocks = picksFor(day, r);
       const chips = blocks.map(b => `<a class="chip ${b.long?"long":""}" href="${v.url}" target="_blank" rel="noopener" aria-label="volno ${fmt(b.start)} až ${fmt(b.end)}">${fmt(b.start)}–${fmt(b.end)}<small>${b.end-b.start}′</small></a>`);
       if (chips.length) vh += `<div class="pick-court"><span class="cn">${esc(r.name)}</span><span class="chips">${chips.join("")}</span></div>`;
     }
     if (vh){ any = true; html += `<div class="pick-venue"><div class="vn">${esc(v.name)}<a href="${v.url}" target="_blank" rel="noopener">Rezervovat</a></div>${vh}</div>`; }
   }
-  if (!any) html += `<p class="empty">Teď nic volného. Jakmile se něco uvolní, přijde ti zpráva na Telegram.</p>`;
+  if (!any) html += `<p class="empty">${split ? `Žádný volný slot na ${split} minut.` : "Teď nic volného. Jakmile se něco uvolní, přijde ti zpráva na Telegram."}</p>`;
   el.innerHTML = html;
+  el.querySelectorAll("[data-split]").forEach(b => b.onclick = () => {
+    split = +b.dataset.split; try { localStorage.setItem("padel-split", split); } catch(e){}
+    renderDays(); renderPicks();
+  });
 }
 
 function renderGrid(){
