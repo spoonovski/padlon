@@ -96,7 +96,16 @@ table.board{width:100%;border-collapse:collapse;font-size:15px}
 .step .faces{justify-self:center;margin:0 0 2px}
 a.plink{color:inherit;text-decoration:none}
 a.plink:hover{text-decoration:underline}
-.board td.n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+.board td.n{white-space:nowrap;max-width:200px}
+.tierline{margin:2px 0 0 38px}
+.board td.rank{width:46px;white-space:nowrap}
+.mv{display:block;font-size:12px;font-weight:800;line-height:1.2;margin-top:2px}
+.mv.up{color:#1f9d4c}
+.mv.down{color:var(--warn)}
+.mv.same{color:var(--muted)}
+.mv.new{color:var(--turf-3);font-weight:700;font-size:11px}
+.tiers{display:flex;flex-wrap:wrap;gap:8px 12px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.tiers small{color:var(--muted);font-size:12px}
 .board td.up{color:var(--turf-3);font-weight:600}
 .board td.down{color:var(--warn);font-weight:600}
 .seg button{padding:8px 13px}
@@ -121,7 +130,7 @@ a.plink:hover{text-decoration:underline}
 
   <header class="top">
     <h1>Žeb&shy;říček</h1>
-    <div class="rule">Výhra <b>3 body</b><br>prohra 0</div>
+    <div class="rule" id="rule"></div>
   </header>
 
   <p class="err" id="error" role="alert" hidden></p>
@@ -136,9 +145,8 @@ a.plink:hover{text-decoration:underline}
     <div class="pending" id="pending" hidden></div>
 
     <div class="seg" role="tablist" aria-label="Žebříček">
-      <button role="tab" id="tab-solo" aria-selected="true" aria-controls="board-card" type="button">Jednotlivci</button>
+      <button role="tab" id="tab-elo" aria-selected="true" aria-controls="board-card" type="button">Jednotlivci</button>
       <button role="tab" id="tab-pairs" aria-selected="false" aria-controls="board-card" type="button">Dvojice</button>
-      <button role="tab" id="tab-elo" aria-selected="false" aria-controls="board-card" type="button">ELO</button>
     </div>
 
     <section class="card" id="board-card" role="tabpanel">
@@ -163,11 +171,11 @@ const dateOf = ymd => { const [y,m,d] = ymd.split("-").map(Number); return new D
 const dateTxt = ymd => { const d = dateOf(ymd); return `${DOW_LONG[d.getDay()]} ${d.getDate()}. ${d.getMonth()+1}.`; };
 function showError(msg){ const e = $("error"); e.textContent = msg; e.hidden = !msg; }
 
-let me = null, roster = null, matches = [], mode = "solo", S = null;
-try { const m = localStorage.getItem("padel-board"); if (["pairs","elo"].includes(m)) mode = m; } catch(e){}
+let me = null, roster = null, matches = [], mode = "elo", S = null;
+try { if (localStorage.getItem("padel-board") === "pairs") mode = "pairs"; } catch(e){}
 const player = id => (roster || []).find(p => p.id === id) || {id, name: names()[id] || "?"};
 const link = id => `<a class="plink" href="profile.html?id=${encodeURIComponent(id)}">${esc(names()[id] || "?")}</a>`;
-const faces = (ids, size) => `<span class="faces">${ids.map(id => S.avatar(player(id), size)).join("")}</span>`;
+const faces = (ids, size, elo = null) => `<span class="faces">${ids.map(id => S.avatar(player(id), size, elo)).join("")}</span>`;
 
 const names = () => {
   const n = {};
@@ -181,12 +189,21 @@ const results = () => matches.filter(m => Array.isArray(m.winners) && Array.isAr
 // Body: výhra 3, prohra 0. Pořadí: body, pak úspěšnost, pak počet zápasů.
 function table(kind){
   if (kind === "elo"){
-    const {ratings, history} = S.computeElo(matches);
     const n = names();
-    return Object.keys(history).filter(known).map(id => {
-      const h = history[id], w = h.filter(x => x.delta > 0).length;
-      return {key: id, ids: [id], label: n[id] || "?", elo: S.ratingOf(ratings, id), last: h[h.length-1].delta, w, l: h.length - w, pct: Math.round(100 * w / h.length)};
-    }).sort((a,b) => b.elo - a.elo || a.label.localeCompare(b.label, "cs"));
+    const rank = ms => {
+      const {ratings, history} = S.computeElo(ms);
+      return Object.keys(history).filter(known).map(id => {
+        const h = history[id], w = matches.filter(m => S.isResult(m) && ms.includes(m) && m.winners.includes(id)).length;
+        return {key: id, ids: [id], label: n[id] || "?", elo: S.ratingOf(ratings, id), last: h[h.length-1].delta, w, l: h.length - w, pct: Math.round(100 * w / h.length)};
+      }).sort((a,b) => b.elo - a.elo || a.label.localeCompare(b.label, "cs"));
+    };
+    const rows = rank(matches);
+    // pohyb v pořadí oproti stavu před posledním hracím dnem
+    const lastDay = results().map(m => m.date).sort().pop();
+    const before = rank(matches.filter(m => !S.isResult(m) || m.date < lastDay));
+    const prevPos = Object.fromEntries(before.map((r, i) => [r.key, i]));
+    rows.forEach((r, i) => { r.move = r.key in prevPos ? prevPos[r.key] - i : null; });
+    return rows;
   }
   const st = {};
   const add = (key, ids, won) => {
@@ -212,11 +229,11 @@ function table(kind){
 
 function render(){
   if (!S) return;
-  for (const k of ["solo","pairs","elo"]) $("tab-" + k).setAttribute("aria-selected", mode === k);
+  for (const k of ["elo","pairs"]) $("tab-" + k).setAttribute("aria-selected", mode === k);
+  $("rule").innerHTML = mode === "elo" ? "Start <b>100 ELO</b><br>výhra cca +100" : "Výhra <b>3 body</b><br>prohra 0";
   $("board-sub").textContent = {
-    solo: "Body sbírá každý hráč sám za sebe, ať hraje s kýmkoliv.",
     pairs: "Stejná dvojice dohromady, bez ohledu na pořadí jmen.",
-    elo: "Každý začíná na 1000. Výhra nad silnějšími dá víc, nad slabšími méně.",
+    elo: "Pořadí podle ELO. Výhra nad stejně silnými +100, prohra −75, nad silnějšími víc, nad slabšími míň. Šipka ukazuje posun od posledního hracího dne.",
   }[mode];
   const rows = table(mode);
   const isMe = r => me && r.ids.includes(me);
@@ -230,11 +247,16 @@ function render(){
     rows.forEach((r, i) => { if (score(r) !== prev){ rank = i + 1; prev = score(r); } r.rank = rank; });
     const top = rows.slice(0, 3);
     $("podium").innerHTML = top.length >= 2 ? `<div class="podium">${[1,0,2].map(i => top[i] ? `
-      <div class="step p${i+1} ${isMe(top[i]) ? "you" : ""}">${faces(top[i].ids, i === 0 ? 52 : 44)}<span class="who">${top[i].ids.map(link).join(" & ")}</span><span class="pts">${mode === "elo" ? top[i].elo + " ELO" : top[i].pts + " b."}</span><span class="block">${top[i].rank}</span></div>` : "<div></div>").join("")}</div>` : "";
+      <div class="step p${i+1} ${isMe(top[i]) ? "you" : ""}">${faces(top[i].ids, i === 0 ? 56 : 46, mode === "elo" ? top[i].elo : null)}<span class="who">${top[i].ids.map(link).join(" & ")}</span><span class="pts">${mode === "elo" ? S.tierBadge(top[i].elo, {text: (S.tierOf(top[i].elo).icon ? S.tierOf(top[i].elo).icon + " " : "") + top[i].elo}) : top[i].pts + " b."}</span><span class="block">${top[i].rank}</span></div>` : "<div></div>").join("")}</div>` : "";
     let h;
     if (mode === "elo"){
+      const mv = r => r.move === null ? `<span class="mv new" title="nový v žebříčku">nový</span>`
+        : r.move > 0 ? `<span class="mv up" title="o ${r.move} ${r.move === 1 ? "místo" : r.move < 5 ? "místa" : "míst"} nahoru">▲${r.move}</span>`
+        : r.move < 0 ? `<span class="mv down" title="o ${-r.move} ${r.move === -1 ? "místo" : r.move > -5 ? "místa" : "míst"} dolů">▼${-r.move}</span>`
+        : `<span class="mv same" title="beze změny">=</span>`;
       h = `<table class="board"><thead><tr><th></th><th>Hráč</th><th>Zápasy</th><th class="pct">Poslední</th><th>ELO</th></tr></thead><tbody>`;
-      for (const r of rows) h += `<tr class="${isMe(r) ? "you" : ""}"><td class="rank">${r.rank}.</td><td class="n">${faces(r.ids, 26)} ${link(r.ids[0])}</td><td>${r.w + r.l}</td><td class="pct ${r.last > 0 ? "up" : "down"}">${r.last > 0 ? "▲ +" + r.last : "▼ " + r.last}</td><td class="pts">${r.elo}</td></tr>`;
+      for (const r of rows) h += `<tr class="${isMe(r) ? "you" : ""}"><td class="rank">${r.rank}.${mv(r)}</td><td class="n">${faces(r.ids, 30, r.elo)} ${link(r.ids[0])}<div class="tierline">${S.tierBadge(r.elo)}</div></td><td>${r.w + r.l}</td><td class="pct ${r.last > 0 ? "up" : "down"}">${r.last > 0 ? "▲ +" + r.last : r.last < 0 ? "▼ " + r.last : "–"}</td><td class="pts">${r.elo}</td></tr>`;
+      h += `</tbody></table><div class="tiers">${[...S.TIERS].reverse().map((t, i, a) => `<span>${S.tierBadge(t.min)} <small>${t.min}${a[i+1] ? "–" + (a[i+1].min - 1) : "+"}</small></span>`).join("")}</div><table hidden><tbody>`;
     } else {
       h = `<table class="board"><thead><tr><th></th><th>${mode === "solo" ? "Hráč" : "Dvojice"}</th><th>Zápasy</th><th>V–P</th><th class="pct">Úspěšnost</th><th>Body</th></tr></thead><tbody>`;
       for (const r of rows) h += `<tr class="${isMe(r) ? "you" : ""}"><td class="rank">${r.rank}.</td><td class="n">${faces(r.ids, 26)} ${r.ids.map(link).join(" & ")}</td><td>${r.w + r.l}</td><td>${r.w}–${r.l}</td><td class="pct">${r.pct} %</td><td class="pts">${r.pts}</td></tr>`;
@@ -258,12 +280,12 @@ function render(){
 }
 
 const setMode = m => { mode = m; try { localStorage.setItem("padel-board", m); } catch(e){} render(); };
-const MODES = ["solo", "pairs", "elo"];
+const MODES = ["elo", "pairs"];
 MODES.forEach(m => $("tab-" + m).onclick = () => setMode(m));
 // šipky mezi podzáložkami
 document.querySelector(".seg").addEventListener("keydown", e => {
   const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
-  if (d){ const m = MODES[(MODES.indexOf(mode) + d + 3) % 3]; setMode(m); $("tab-" + m).focus(); }
+  if (d){ const m = MODES[(MODES.indexOf(mode) + d + 2) % 2]; setMode(m); $("tab-" + m).focus(); }
 });
 
 (async () => {

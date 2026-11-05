@@ -60,6 +60,7 @@ a{color:var(--turf-3)}
 .hero h1{margin:0;font-weight:800;font-size:clamp(32px,8vw,48px);line-height:1;letter-spacing:-.01em;font-variation-settings:"wdth" 120;overflow-wrap:anywhere}
 .hero .elo{margin-top:6px;font-size:15px;color:var(--muted)}
 .hero .elo b{color:var(--ink);font-size:20px;font-variation-settings:"wdth" 110}
+.hero .next{font-size:13px;color:var(--muted);margin-top:2px}
 .photo-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
 .btn{border:0;border-radius:10px;padding:8px 13px;font-weight:650;cursor:pointer;background:var(--ink);color:var(--glass);font-size:14px}
 .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
@@ -184,18 +185,19 @@ function render(){
   const own = id === me;
   document.title = `${p.name} – profil`;
   $("name").textContent = p.name;
-  $("photo").innerHTML = S.avatar(p, 92);
+  const {ratings, history} = S.computeElo(matches);
+  const elo = S.ratingOf(ratings, id);
+  $("photo").innerHTML = S.avatar(p, 96, elo);
   $("photo-actions").hidden = !own;
   $("photo-remove").hidden = !own || !p.photo;
 
-  const {ratings, history} = S.computeElo(matches);
-  const elo = S.ratingOf(ratings, id);
   const ranked = Object.keys(history).filter(x => roster.some(r => r.id === x)).sort((a, b) => ratings[b] - ratings[a]);
   const rank = ranked.indexOf(id);
-  $("elo").innerHTML = `ELO <b>${elo}</b>${rank >= 0 ? ` · ${rank + 1}. z ${ranked.length}` : " · zatím bez zápasu"}`;
+  const t = S.tierOf(elo), next = [...S.TIERS].reverse().find(x => x.min > elo);
+  $("elo").innerHTML = `<div style="margin-bottom:4px">${S.tierBadge(elo, {big: true})}</div>ELO <b>${elo}</b>${rank >= 0 ? ` · ${rank + 1}. z ${ranked.length}` : " · zatím bez zápasu"}${next ? `<div class="next">Do úrovně ${next.name}: ${next.min - elo} bodů</div>` : ""}`;
 
   const st = S.playerStats(id, matches);
-  $("tiles").innerHTML = [["main", st.pts, "bodů"], ["", st.played, plural(st.played, "zápas", "zápasy", "zápasů")], ["", `${st.w}–${st.l}`, "výhry–prohry"], ["", st.played ? st.pct + " %" : "–", "úspěšnost"]]
+  $("tiles").innerHTML = [["main", elo, "ELO"], ["", st.played, plural(st.played, "zápas", "zápasy", "zápasů")], ["", `${st.w}–${st.l}`, "výhry–prohry"], ["", st.played ? st.pct + " %" : "–", "úspěšnost"]]
     .map(([c, v, l]) => `<div class="tile ${c}"><b>${v}</b><span>${l}</span></div>`).join("");
 
   $("form").innerHTML = st.played
@@ -214,10 +216,11 @@ function render(){
     const X = i => pad + i * (W - 2 * pad) / (pts.length - 1), Y = e => H - pad - (e - lo) * (H - 2 * pad) / (hi - lo);
     const line = pts.map((x, i) => `${X(i).toFixed(1)},${Y(x.elo).toFixed(1)}`).join(" ");
     const base = Y(S.ELO_START);
-    $("chart").innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Vývoj ELO od ${S.ELO_START} do ${elo}">
+    const bands = S.TIERS.map((tt, i) => { const top = i === 0 ? hi : S.TIERS[i-1].min, bot = Math.max(tt.min, lo); if (top <= lo || bot >= hi) return ""; return `<rect x="0" width="${W}" y="${Y(Math.min(top, hi))}" height="${Y(bot) - Y(Math.min(top, hi))}" fill="${tt.ring}" opacity=".12"/>`; }).join("");
+    $("chart").innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Vývoj ELO od ${S.ELO_START} do ${elo}">${bands}
         <line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="var(--line)" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>
         <polyline points="${line}" fill="none" stroke="var(--turf-3)" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
-        ${pts.map((x, i) => `<circle cx="${X(i)}" cy="${Y(x.elo)}" r="3.5" fill="${i === pts.length - 1 ? "var(--ball-3)" : "var(--turf-3)"}" stroke="var(--paper)" stroke-width="1.5"><title>${x.date ? dShort(x.date) + ": " : "Start: "}${x.elo}</title></circle>`).join("")}
+        ${pts.map((x, i) => pts.length > 25 && i !== pts.length - 1 ? "" : `<circle cx="${X(i)}" cy="${Y(x.elo)}" r="3.5" fill="${i === pts.length - 1 ? "var(--ball-3)" : "var(--turf-3)"}" stroke="var(--paper)" stroke-width="1.5"><title>${x.date ? dShort(x.date) + ": " : "Start: "}${x.elo}</title></circle>`).join("")}
       </svg>
       <div class="chart-legend"><span>start ${S.ELO_START}</span><span>max ${Math.max(...pts.map(x => x.elo))}</span><span>teď ${elo}</span></div>`;
   }

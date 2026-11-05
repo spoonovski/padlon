@@ -1,26 +1,48 @@
 // Společné výpočty pro žebříček, profil hráče a návrh týmů.
 //
-// ELO: každý začíná na 1000. Síla týmu = průměr ELO hráčů. Po zápase se každému
-// hráči vítězného týmu přičte K × (1 − očekávaná šance na výhru) a poraženým
-// stejně odečte. Výhra nad silnějším tak dá víc, nad slabším méně.
+// ELO: každý začíná na 100. Síla týmu = průměr ELO hráčů. Vítězové dostanou
+// K × (1 − očekávaná šance na výhru), poražení ztratí 75 % této částky.
+// Proti stejně silným je to +100 / −75, nad silnějšími víc, nad slabšími méně.
+// Protože se za prohru bere o něco méně, ELO s hraním postupně roste a vyšší
+// úrovně jsou dosažitelné. ELO nespadne pod 0.
 
-export const ELO_START = 1000;
-export const ELO_K = 32;
+export const ELO_START = 100;
+export const ELO_K = 200;          // výhra nad stejně silnými = K/2 = +100
+export const ELO_LOSS = 0.75;      // prohra = 75 % toho, co by získal vítěz
+export const ELO_SCALE = 2000;     // jak moc rozdíl ELO mění šanci (vyšší = pozvolněji)
+
+// Úrovně podle ELO
+export const TIERS = [
+  {min: 1500, name: "Démon",          icon: "😈", bg: "linear-gradient(135deg,#0d0000 0%,#3a0006 45%,#b3001b 100%)", fg: "#ffd9dd", ring: "#c4001f", glow: "0 0 10px rgba(196,0,31,.55)"},
+  {min: 1300, name: "Růžový diamant", icon: "💗", bg: "linear-gradient(135deg,#ffe3f3 0%,#ff9fd2 50%,#ff5fae 100%)",  fg: "#5a0632", ring: "#ff6fb5", glow: "0 0 8px rgba(255,111,181,.45)"},
+  {min: 1100, name: "Diamant",        icon: "💎", bg: "linear-gradient(135deg,#e8fbff 0%,#9be7ff 50%,#4cc3f5 100%)",  fg: "#063a52", ring: "#4cc3f5", glow: "0 0 8px rgba(76,195,245,.45)"},
+  {min: 900,  name: "Zelená",         icon: "",   bg: "linear-gradient(135deg,#6fdc8c 0%,#24a148 100%)",              fg: "#03290f", ring: "#24a148", glow: "none"},
+  {min: 700,  name: "Zlatá",          icon: "",   bg: "linear-gradient(135deg,#ffe58a 0%,#f2b51c 55%,#c98a0b 100%)",  fg: "#3d2a00", ring: "#e0a313", glow: "none"},
+  {min: 500,  name: "Šedá",           icon: "",   bg: "linear-gradient(135deg,#e3e7eb 0%,#a7b0ba 100%)",              fg: "#2a3138", ring: "#9aa4ae", glow: "none"},
+  {min: 0,    name: "Hnědá",          icon: "",   bg: "linear-gradient(135deg,#b07a4a 0%,#7a4b25 100%)",              fg: "#fff3e6", ring: "#8b5a2b", glow: "none"},
+];
+export const tierOf = elo => TIERS.find(t => elo >= t.min) || TIERS[TIERS.length - 1];
+export function tierBadge(elo, {big = false, withElo = false, text = null} = {}){
+  const t = tierOf(elo);
+  const fs = big ? 14 : 11, pad = big ? "4px 11px" : "2px 7px";
+  return `<span class="tier" title="${t.name}" style="display:inline-flex;align-items:center;gap:4px;white-space:nowrap;vertical-align:middle;border-radius:999px;padding:${pad};font-size:${fs}px;font-weight:750;line-height:1.3;background:${t.bg};color:${t.fg};box-shadow:${t.glow}">${text !== null ? text : (t.icon ? t.icon + " " : "") + t.name + (withElo ? " · " + elo : "")}</span>`;
+}
 
 export const isResult = m => Array.isArray(m.winners) && Array.isArray(m.losers) && m.winners.length && m.losers.length;
 const chrono = (a, b) => a.date.localeCompare(b.date) || a.start - b.start || (a.created || 0) - (b.created || 0);
 const avg = (ids, r) => ids.reduce((s, id) => s + (r[id] ?? ELO_START), 0) / ids.length;
-export const winChance = (ra, rb) => 1 / (1 + Math.pow(10, (rb - ra) / 400));
+export const winChance = (ra, rb) => 1 / (1 + Math.pow(10, (rb - ra) / ELO_SCALE));
 
 export function computeElo(matches){
   const r = {}, history = {};
   for (const m of matches.filter(isResult).sort(chrono)){
     const ra = avg(m.winners, r), rb = avg(m.losers, r);
-    const delta = Math.round(ELO_K * (1 - winChance(ra, rb)));
-    for (const [ids, sign] of [[m.winners, 1], [m.losers, -1]]){
+    const gain = ELO_K * (1 - winChance(ra, rb));
+    for (const [ids, change] of [[m.winners, Math.round(gain)], [m.losers, -Math.round(gain * ELO_LOSS)]]){
       for (const id of ids){
-        r[id] = (r[id] ?? ELO_START) + sign * delta;
-        (history[id] ||= []).push({date: m.date, elo: r[id], delta: sign * delta, match: m.id});
+        const before = r[id] ?? ELO_START;
+        r[id] = Math.max(0, before + change);
+        (history[id] ||= []).push({date: m.date, elo: r[id], delta: r[id] - before, match: m.id});
       }
     }
   }
@@ -74,7 +96,12 @@ export function playerStats(id, matches){
 }
 
 // Kolečko s fotkou nebo iniciálou.
-export function avatar(player, size = 32){
+export function avatar(player, size = 32, elo = null){
+  // s ELO dostane fotka rámeček v barvě úrovně
+  if (elo !== null){
+    const t = tierOf(elo), w = Math.max(2, Math.round(size / 16));
+    return `<span style="display:inline-grid;place-items:center;border-radius:50%;padding:${w}px;background:${t.bg};box-shadow:${t.glow};flex:none;vertical-align:middle">${avatar(player, size - 2 * w)}</span>`;
+  }
   const name = (player && player.name) || "?";
   const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   const st = `width:${size}px;height:${size}px;border-radius:50%;flex:none;display:inline-grid;place-items:center;overflow:hidden;vertical-align:middle;`;
