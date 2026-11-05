@@ -13,9 +13,9 @@ export const ELO_SCALE = 2000;     // jak moc rozdíl ELO mění šanci (vyšš�
 
 // Úrovně podle ELO
 export const TIERS = [
-  {min: 1500, name: "Demonic",          icon: "😈", bg: "linear-gradient(135deg,#0d0000 0%,#3a0006 45%,#b3001b 100%)", fg: "#ffd9dd", ring: "#c4001f", glow: "0 0 10px rgba(196,0,31,.55)"},
-  {min: 1300, name: "Master", icon: "💗", bg: "linear-gradient(135deg,#ffe3f3 0%,#ff9fd2 50%,#ff5fae 100%)",  fg: "#5a0632", ring: "#ff6fb5", glow: "0 0 8px rgba(255,111,181,.45)"},
-  {min: 1100, name: "Diamond",        icon: "💎", bg: "linear-gradient(135deg,#e8fbff 0%,#9be7ff 50%,#4cc3f5 100%)",  fg: "#063a52", ring: "#4cc3f5", glow: "0 0 8px rgba(76,195,245,.45)"},
+  {min: 1500, name: "Demonic",          icon: "", bg: "linear-gradient(135deg,#0d0000 0%,#3a0006 45%,#b3001b 100%)", fg: "#ffd9dd", ring: "#c4001f", glow: "0 0 10px rgba(196,0,31,.55)"},
+  {min: 1300, name: "Master", icon: "", bg: "linear-gradient(135deg,#ffe3f3 0%,#ff9fd2 50%,#ff5fae 100%)",  fg: "#5a0632", ring: "#ff6fb5", glow: "0 0 8px rgba(255,111,181,.45)"},
+  {min: 1100, name: "Diamond",        icon: "", bg: "linear-gradient(135deg,#e8fbff 0%,#9be7ff 50%,#4cc3f5 100%)",  fg: "#063a52", ring: "#4cc3f5", glow: "0 0 8px rgba(76,195,245,.45)"},
   {min: 900,  name: "Emerald",         icon: "",   bg: "linear-gradient(135deg,#6fdc8c 0%,#24a148 100%)",              fg: "#03290f", ring: "#24a148", glow: "none"},
   {min: 700,  name: "Gold",          icon: "",   bg: "linear-gradient(135deg,#ffe58a 0%,#f2b51c 55%,#c98a0b 100%)",  fg: "#3d2a00", ring: "#e0a313", glow: "none"},
   {min: 500,  name: "Silver",           icon: "",   bg: "linear-gradient(135deg,#e3e7eb 0%,#a7b0ba 100%)",              fg: "#2a3138", ring: "#9aa4ae", glow: "none"},
