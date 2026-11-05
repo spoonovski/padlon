@@ -147,7 +147,7 @@ table.grid{border-spacing:5px !important}
 .grid td.c1{background:var(--turf-1) !important}
 .grid td.c2{background:var(--turf-2) !important}
 .grid td.c3{background:var(--turf-3) !important}
-.grid td.w.c2{background:var(--ball-2) !important;box-shadow:none !important}
+.grid td.w.c2{background:var(--ball-3) !important;box-shadow:0 0 8px rgba(212,255,58,.45) !important}
 .grid td.w.c3{background:var(--ball-3) !important;box-shadow:0 0 8px rgba(212,255,58,.45) !important}
 .grid td.wstart{box-shadow:inset 0 0 0 2px rgba(255,255,255,.55) !important}
 .grid td.w.c3.wstart{box-shadow:0 0 8px rgba(212,255,58,.45), inset 0 0 0 2px rgba(10,22,0,.4) !important}
@@ -227,3 +227,6 @@ header.top .top-right{width:100%;display:flex !important;flex-wrap:wrap;justify-
 header.top .top-right .updated{text-align:left}
 header.top .top-right .status{width:100%;text-align:left;max-width:none}
 @media (min-width:760px){ header.top .top-right{width:auto;margin-left:auto;justify-content:flex-end} }
+
+/* hratelné volno je všude plně limetkové (90 i 120+) */
+.chip:not(.w):not(.l){background:var(--ball-3) !important;color:var(--ball-ink) !important}
