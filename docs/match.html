@@ -252,6 +252,7 @@ table.board{width:100%;border-collapse:collapse;font-size:15px}
       <h2 id="mine-title">Moje volno</h2>
       <p class="sub">Ťukni na půlhodiny, kdy můžeš začít hrát, nebo přes ně táhni prstem. Ukládá se samo.</p>
       <div class="presets">
+        <button class="btn ball small" data-preset="mine" type="button">Moje časy</button>
         <button class="btn ghost small" data-preset="18:00-22:00" type="button">Večer 18–22</button>
         <button class="btn ghost small" data-preset="08:00-12:00" type="button">Dopoledne</button>
         <button class="btn ghost small" data-preset="12:00-18:00" type="button">Odpoledne</button>
@@ -470,7 +471,13 @@ slotsEl.addEventListener("keydown", e => {   // klávesnice: Enter/mezerník př
   }
 });
 document.querySelectorAll("[data-preset]").forEach(b => b.onclick = () => {
-  const p = b.dataset.preset;
+  let p = b.dataset.preset;
+  if (p === "mine"){
+    const prefs = ((roster || []).find(x => x.id === me.id) || {}).prefs;
+    if (!prefs){ $("saved").innerHTML = `Svoje časy si nastav v záložce <a href="./" style="color:var(--turf-3)">Kurty</a> → Personal mode.`; return; }
+    const v = prefs[(dateOf(day).getDay() + 6) % 7];
+    p = !v ? "none" : v === "all" ? "all" : v;
+  }
   let s = "";
   for (let i=0;i<N;i++){
     const t = slotMin(i);

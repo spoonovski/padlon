@@ -44,6 +44,7 @@ export async function connect(showError = console.error){
     },
     getPlayer: async uid => { const d = await fs.getDoc(fs.doc(db, "players", uid)); return d.exists() ? d.data() : null; },
     setPlayer: (uid, data) => fs.setDoc(fs.doc(db, "players", uid), data),
+    updatePlayer: (uid, data) => fs.updateDoc(fs.doc(db, "players", uid), data),
     watchPlayers: cb => fs.onSnapshot(fs.collection(db, "players"), snap => cb(snap.docs.map(d => ({id: d.id, ...d.data()}))),
       err => showError("Nepodařilo se načíst hráče: " + err.message)),
     watchAvailability: (from, cb) => watch("availability", from, cb),

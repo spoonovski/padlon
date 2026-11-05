@@ -151,7 +151,7 @@ footer{color:var(--muted);font-size:13px;margin-top:28px}
 .tabs a{padding:7px 16px;border-radius:999px;text-decoration:none;color:var(--ink);font-weight:650;font-size:15px}
 .tabs a[aria-current="page"]{background:var(--ink);color:var(--glass)}
 
-/* work mode */
+/* personal mode */
 .mode-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-4px 0 14px}
 .workmode{
   display:inline-flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--paper);
@@ -163,7 +163,23 @@ footer{color:var(--muted);font-size:13px;margin-top:28px}
 .workmode[aria-pressed="true"] .knob{background:var(--ball-3)}
 .workmode[aria-pressed="true"] .knob::after{left:16px}
 body:not(.work) .work-only{display:none}
-.mode-hint{font-size:13px;color:var(--muted);text-align:right}
+.mode-side{display:grid;justify-items:end;gap:2px}
+.linkbtn{border:0;background:none;padding:0;color:var(--turf-3);font-weight:600;cursor:pointer;font-size:14px}
+.prefs{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px;margin:0 0 18px}
+.prefs h2{margin:0 0 4px;font-size:18px;font-variation-settings:"wdth" 110}
+.prefs p{margin:0 0 12px;font-size:14px;color:var(--muted)}
+.prefs .pmsg{color:var(--warn);font-size:14px}
+.prefs .pmsg:empty{display:none}
+.pref-row{display:grid;grid-template-columns:34px 1fr;gap:8px;align-items:center;padding:7px 0;border-top:1px solid var(--line)}
+.pref-row:first-of-type{border-top:0}
+.pref-row b{font-weight:700}
+.pref-ctl{display:flex;gap:6px;align-items:center;flex-wrap:nowrap}
+.pref-ctl [data-range]{display:inline-flex;gap:4px;align-items:center}
+.pref-ctl [data-range][hidden]{display:none}
+.pref-ctl select{font:inherit;font-size:14px;padding:6px 4px;border-radius:9px;border:1px solid var(--line);background:var(--glass);color:var(--ink)}
+.pref-ctl .dash{color:var(--muted)}
+.prefs .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.mode-hint{font-size:13px;color:var(--muted);margin:-6px 0 14px}
 @media (prefers-reduced-motion:no-preference){.workmode .knob::after{transition:left .15s}}
 
 /* ruční kontrola */
@@ -228,10 +244,27 @@ body:not(.work) .work-only{display:none}
 
   <div class="mode-row">
     <button class="workmode" id="workmode" type="button" aria-pressed="false">
-      <span class="knob" aria-hidden="true"></span>Work mode
+      <span class="knob" aria-hidden="true"></span>Personal mode
     </button>
-    <span class="mode-hint" id="mode-hint"></span>
+    <button class="linkbtn" id="prefs-open" type="button" hidden>Upravit moje časy</button>
   </div>
+  <p class="mode-hint" id="mode-hint"></p>
+
+  <section class="prefs" id="prefs-login" hidden>
+    <h2>Personal mode potřebuje přihlášení</h2>
+    <p style="margin:0">Každý si nastaví, kdy se mu hraní hodí, a uloží se mu to k účtu. Přihlas se nebo zaregistruj v záložce <a href="match.html" style="color:var(--turf-3)">Zápasy</a> a vrať se sem.</p>
+  </section>
+
+  <section class="prefs" id="prefs" hidden>
+    <h2>Kdy se ti hodí hrát</h2>
+    <p>Personal mode pak ukáže jen volné kurty v těchhle časech. Platí na všech tvých zařízeních.</p>
+    <div id="pref-rows"></div>
+    <p class="pmsg" id="prefs-msg" role="alert" style="margin:10px 0 0"></p>
+    <div class="actions">
+      <button class="btn" id="prefs-save" type="button">Uložit</button>
+      <button class="btn ghost" id="prefs-cancel" type="button">Zrušit</button>
+    </div>
+  </section>
 
   <nav class="days" id="days" aria-label="Den"></nav>
 
@@ -263,11 +296,32 @@ const fmt = m => String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padSt
 const pyDow = d => (d.getDay()+6)%7;           // 0 = pondělí jako v Pythonu
 const dateOf = ymd => { const [y,m,d] = ymd.split("-").map(Number); return new Date(y,m-1,d); };
 
-// Bez Work mode: každý den celý den. Work mode: tvoje časy, víkend kdykoliv.
+// Personal mode: časy přihlášeného hráče z jeho účtu (Firebase).
+// Hodnota pro den: "18:00-22:00", "all" (celý den) nebo "" (nehraje). Klíče 0 = pondělí … 6 = neděle.
+const DEFAULT_PREFS = {0: "18:00-22:00", 1: "18:00-22:00", 2: "18:00-22:00", 3: "18:00-22:00", 4: "18:00-22:00", 5: "all", 6: "all"};
+let PREFS = null, LOGGED = null, savePrefs = null;
+const PDOW = ["Po","Út","St","Čt","Pá","So","Ne"];
+function prefWindows(dow, prefs){
+  const v = (prefs || PREFS || DEFAULT_PREFS)[dow];
+  if (!v) return [];
+  if (v === "all") return [[0, 24*60]];
+  const [a, b] = v.split("-"); return [[hm(a), hm(b)]];
+}
 function windowsFor(ymd){
-  const dow = pyDow(dateOf(ymd));
-  if (!work || dow >= 5) return [[0, 24*60]];
-  return (DATA.windows[dow] || []).map(([s,e]) => [hm(s), e ? hm(e) : 24*60]);
+  if (!work) return [[0, 24*60]];
+  return prefWindows(pyDow(dateOf(ymd)));
+}
+function prefsSummary(prefs){
+  const t1 = t => t.replace(/:00$/, "").replace(/^0/, "");
+  const txt = v => !v ? null : v === "all" ? "celý den" : v.split("-").map(t1).join("–");
+  const parts = []; let i = 0;
+  while (i < 7){
+    const v = (prefs || DEFAULT_PREFS)[i]; let j = i;
+    while (j + 1 < 7 && (prefs || DEFAULT_PREFS)[j+1] === v) j++;
+    if (txt(v)) parts.push(`${PDOW[i]}${j > i ? (j === i+1 ? ", " : "–") + PDOW[j] : ""} ${txt(v)}`);
+    i = j + 1;
+  }
+  return parts.join(" · ") || "Nemáš nastavené žádné časy";
 }
 
 function slotMin(i){ return hm(DATA.grid.start) + i*DATA.grid.step; }
@@ -325,7 +379,7 @@ function renderPicks(){
   const el = document.getElementById("picks"), d = dateOf(day);
   const title = `Hratelné ${[3,4].includes(d.getDay()) ? "ve" : "v"} ${DOW_LONG[d.getDay()]} ${d.getDate()}. ${d.getMonth()+1}.`;
   if (!windowsFor(day).length){
-    el.innerHTML = `<h2>${title}</h2><p class="empty">Ve Work mode tenhle den nehraješ. Vypni Work mode, nebo vyber jiný den.</p>`; return;
+    el.innerHTML = `<h2>${title}</h2><p class="empty">Podle tvých časů tenhle den nehraješ. Vypni Personal mode, nebo vyber jiný den.</p>`; return;
   }
   const ws = windowsFor(day);
   const wtxt = ws.length === 1 && ws[0][0] === 0 && ws[0][1] >= 1440 ? "kdykoliv během dne"
@@ -392,18 +446,72 @@ function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt
 function render(){ renderDays(); renderPicks(); renderGrid(); renderUpdated(); }
 
 function setWork(on, rerender){
-  work = on;
-  document.getElementById("workmode").setAttribute("aria-pressed", on);
-  document.body.classList.toggle("work", on);
-  document.getElementById("mode-hint").textContent = on ? "Všední večery bez středy, víkend celý" : "Všechny dny, celý den";
-  try { localStorage.setItem("padel-work", on ? "1" : "0"); } catch(e){}
+  work = on && LOGGED === true && !!PREFS;
+  document.getElementById("workmode").setAttribute("aria-pressed", work);
+  document.body.classList.toggle("work", work);
+  document.getElementById("mode-hint").textContent = work ? prefsSummary(PREFS) : "Všechny dny, celý den";
+  document.getElementById("prefs-open").hidden = !LOGGED;
+  try { localStorage.setItem("padel-personal", on ? "1" : "0"); } catch(e){}
   if (rerender && DATA){
     if (!windowsFor(day).length) day = DATA.days.find(d => windowsFor(d).length) || day;
     render();
   }
 }
-document.getElementById("workmode").onclick = () => setWork(!work, true);
-try { work = localStorage.getItem("padel-work") === "1"; } catch(e){}
+document.getElementById("workmode").onclick = () => {
+  if (work) return setWork(false, true);
+  if (LOGGED === false){ document.getElementById("prefs-login").hidden = false; return; }
+  if (LOGGED && !PREFS){ openPrefs(); return; }   // poprvé: nejdřív si nastav časy
+  setWork(true, true);
+};
+try { work = localStorage.getItem("padel-personal") === "1"; } catch(e){}
+
+// ---------- editor mých časů
+const TIMES = []; for (let m = 6*60; m <= 24*60; m += 30) TIMES.push(m);
+function openPrefs(){
+  const el = document.getElementById("pref-rows"), cur = PREFS || DEFAULT_PREFS;
+  el.innerHTML = PDOW.map((d, i) => {
+    const v = cur[i] || "", kind = !v ? "off" : v === "all" ? "all" : "range";
+    const [a, b] = kind === "range" ? v.split("-").map(hm) : [18*60, 22*60];
+    const opts = (sel, from) => TIMES.filter(t => from ? t < 24*60 : t > 6*60).map(t => `<option value="${t}" ${t === sel ? "selected" : ""}>${fmt(t)}</option>`).join("");
+    return `<div class="pref-row" data-i="${i}"><b>${d}</b><div class="pref-ctl">
+      <select data-kind aria-label="${d}"><option value="range" ${kind === "range" ? "selected" : ""}>Od–do</option><option value="all" ${kind === "all" ? "selected" : ""}>Celý den</option><option value="off" ${kind === "off" ? "selected" : ""}>Nehraju</option></select>
+      <span data-range ${kind === "range" ? "" : "hidden"}><select data-from aria-label="${d} od">${opts(a, true)}</select> <span class="dash">–</span> <select data-to aria-label="${d} do">${opts(b, false)}</select></span>
+    </div></div>`;
+  }).join("");
+  el.querySelectorAll("[data-kind]").forEach(s => s.onchange = () => { s.parentElement.querySelector("[data-range]").hidden = s.value !== "range"; });
+  document.getElementById("prefs-msg").textContent = "";
+  document.getElementById("prefs").hidden = false;
+  document.getElementById("prefs").scrollIntoView({block: "nearest"});
+}
+document.getElementById("prefs-open").onclick = openPrefs;
+document.getElementById("prefs-cancel").onclick = () => { document.getElementById("prefs").hidden = true; };
+document.getElementById("prefs-save").onclick = async () => {
+  const out = {}, msg = document.getElementById("prefs-msg");
+  for (const row of document.querySelectorAll(".pref-row")){
+    const i = row.dataset.i, k = row.querySelector("[data-kind]").value;
+    if (k === "off") out[i] = "";
+    else if (k === "all") out[i] = "all";
+    else {
+      const a = +row.querySelector("[data-from]").value, b = +row.querySelector("[data-to]").value;
+      if (b - a < 90){ msg.textContent = `${PDOW[i]}: okno musí mít aspoň 90 minut, aby se do něj vešla hra.`; return; }
+      out[i] = `${fmt(a)}-${fmt(b)}`;
+    }
+  }
+  const btn = document.getElementById("prefs-save"); btn.disabled = true; msg.textContent = "";
+  try {
+    if (savePrefs) await savePrefs(out);
+    PREFS = out; document.getElementById("prefs").hidden = true; setWork(true, true);
+  } catch(e){ msg.textContent = "Uložení se nepovedlo: " + (e.code === "permission-denied" ? "Firebase ho odmítla (zkontroluj pravidla)." : e.message); }
+  btn.disabled = false;
+};
+
+// volá modul s Firebase, jakmile ví, kdo je přihlášený
+window.padelAuth = (logged, prefs, save) => {
+  LOGGED = logged; PREFS = prefs || null; savePrefs = save || null;
+  if (logged) document.getElementById("prefs-login").hidden = true;
+  let want = false; try { want = localStorage.getItem("padel-personal") === "1"; } catch(e){}
+  setWork(want && logged && !!PREFS, true);
+};
 
 async function load(){
   try{
@@ -485,6 +593,20 @@ document.getElementById("token-cancel").onclick = () => { box.hidden = true; set
 load();
 setInterval(load, 5*60*1000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+</script>
+<script type="module">
+// Personal mode: přihlášení a uložené časy hráče
+(async () => {
+  try {
+    const api = await (await import("./fb.js?v=" + Date.now())).connect(() => {});
+    if (!api){ window.padelAuth(false); return; }
+    api.onAuth(async u => {
+      if (!u){ window.padelAuth(false); return; }
+      const p = await api.getPlayer(u.uid).catch(() => null);
+      window.padelAuth(true, p && p.prefs, prefs => api.updatePlayer(u.uid, {prefs}));
+    });
+  } catch(e){ window.padelAuth(false); }
+})();
 </script>
 </body>
 </html>

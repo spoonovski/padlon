@@ -8,12 +8,13 @@ service cloud.firestore {
     function isPlayer() { return signedIn() && request.auth.token.firebase.sign_in_provider == 'password'; }
     function shortStr(v, n) { return v is string && v.size() <= n; }
 
-    // Profil hráče: {name, created}, mění ho jen on sám
+    // Profil hráče: {name, created, prefs}, mění ho jen on sám
     match /players/{uid} {
       allow read: if signedIn();
       allow create, update: if isPlayer() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['name', 'created'])
-        && shortStr(request.resource.data.name, 24) && request.resource.data.name.size() > 0;
+        && request.resource.data.keys().hasOnly(['name', 'created', 'prefs'])
+        && shortStr(request.resource.data.name, 24) && request.resource.data.name.size() > 0
+        && (!('prefs' in request.resource.data) || (request.resource.data.prefs is map && request.resource.data.prefs.size() <= 7));
       allow delete: if isPlayer() && request.auth.uid == uid;
     }
 
