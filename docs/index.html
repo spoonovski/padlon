@@ -105,6 +105,7 @@ h1{
 .empty{color:var(--muted);margin:4px 0 0}
 
 /* ovládání mřížky */
+.viewseg{margin:0 0 14px}
 .bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 10px;flex-wrap:wrap}
 .bar h2{margin:0;font-size:20px;font-weight:700;font-variation-settings:"wdth" 110}
 .seg{display:inline-flex;background:var(--paper);border:1px solid var(--line);border-radius:9px;padding:2px}
@@ -287,11 +288,14 @@ body:not(.work) .work-only{display:none}
 
   <nav class="days" id="days" aria-label="Den"></nav>
 
+  <div class="seg viewseg" role="tablist" aria-label="Zobrazení">
+    <button type="button" role="tab" data-view="list" aria-selected="true">Volné časy</button>
+    <button type="button" role="tab" data-view="grid" aria-selected="false">Obsazenost</button>
+  </div>
+
   <section class="picks" id="picks" aria-live="polite"></section>
 
-  <div class="bar">
-    <h2>Obsazenost</h2>
-  </div>
+  <div id="gridview" hidden>
   <div class="legend">
     <span><i style="background:var(--ball-3)"></i>Hratelné, 120+ min</span>
     <span><i style="background:var(--ball-2);box-shadow:inset 0 0 0 1.5px var(--ball-3)"></i>Hratelné, 90 min</span>
@@ -303,12 +307,14 @@ body:not(.work) .work-only{display:none}
   <div id="grid"></div>
 
   <footer>Každé políčko je začátek hry. Barva říká, jak dlouho se od toho času dá hrát. Data se obnovují zhruba každých 10 minut.</footer>
+  </div>
 </div>
 
 <script>
 const DOW = ["Ne","Po","Út","St","Čt","Pá","So"];
 const DOW_LONG = ["neděli","pondělí","úterý","středu","čtvrtek","pátek","sobotu"];
 let DATA = null, day = null, work = false;
+let view = (() => { try { return localStorage.getItem("padel-view") === "grid" ? "grid" : "list"; } catch(e){ return "list"; } })();
 
 const hm = s => { const [h,m] = s.split(":").map(Number); return h*60+m; };
 const fmt = m => String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
@@ -361,13 +367,15 @@ function isPast(ymd, i){
 }
 
 // sousední hratelné začátky sloučené do bloků volna (od–do)
-function blocksFor(ymd, c){
+// Slučují se jen začátky na stejném kurtu (jejich volna se překrývají, takže kurt je volný v kuse).
+// Řádek "Kterýkoliv kurt" neříká, který kurt to je, proto tam každý začátek zůstane zvlášť.
+function blocksFor(ymd, c, single){
   const blocks = [];
   for (let i=0;i<c.length;i++){
     const q = qualifies(ymd,i,c[i]);
     if (!q || isPast(ymd,i)) continue;
     const t = slotMin(i), last = blocks[blocks.length-1];
-    if (last && last.next === t){ last.end = Math.max(last.end, t+q); last.next = t + DATA.grid.step; last.long ||= q===120; }
+    if (!single && last && t <= last.end){ last.end = Math.max(last.end, t+q); last.next = t + DATA.grid.step; last.long = last.end - last.start >= 120; }
     else blocks.push({start:t, end:t+q, next:t+DATA.grid.step, long:q===120});
   }
   return blocks;
@@ -375,7 +383,7 @@ function blocksFor(ymd, c){
 
 function countPicks(ymd){
   let n = 0;
-  for (const v of DATA.venues) for (const r of v.rows) if (r.cells[ymd]) n += blocksFor(ymd, r.cells[ymd]).length;
+  for (const v of DATA.venues) for (const r of v.rows) if (r.cells[ymd]) n += blocksFor(ymd, r.cells[ymd], r.id === "any").length;
   return n;
 }
 
@@ -408,7 +416,7 @@ function renderPicks(){
     let vh = "";
     for (const r of v.rows){
       const c = r.cells[day]; if (!c) continue;
-      const blocks = blocksFor(day, c);
+      const blocks = blocksFor(day, c, r.id === "any");
       const chips = blocks.map(b => `<a class="chip ${b.long?"long":""}" href="${v.url}" target="_blank" rel="noopener" aria-label="volno ${fmt(b.start)} až ${fmt(b.end)}">${fmt(b.start)}–${fmt(b.end)}<small>${b.end-b.start}′</small></a>`);
       if (chips.length) vh += `<div class="pick-court"><span class="cn">${esc(r.name)}</span><span class="chips">${chips.join("")}</span></div>`;
     }
@@ -433,7 +441,7 @@ function renderGrid(){
     if (!v.ok) html += `<p class="stale">${v.rows.length ? "Data jsou ze starší kontroly, rezervační systém teď neodpovídá." : "Rezervační systém teď neodpovídá, zkusí se to znovu při další kontrole."}</p>`;
     if (!rows.length){ html += `</section>`; continue; }
     html += `<div class="scroller"><table class="grid"><thead><tr><th class="court"></th>`;
-    for (const i of cols){ const t = slotMin(i); html += `<th class="${t%60?"":"hour"}">${t%60 ? "" : t/60}</th>`; }
+    for (const i of cols){ const t = slotMin(i); html += `<th class="${t%60?"":"hour"}" data-t="${t}">${t%60 ? "" : t/60}</th>`; }
     html += `</tr></thead><tbody>`;
     for (const r of rows){
       const c = r.cells[day];
@@ -451,7 +459,31 @@ function renderGrid(){
     html += `</tbody></table></div></section>`;
   }
   el.innerHTML = html;
+  scrollGridToNow();
 }
+
+// dnešek: mřížka se sama posune na aktuální čas (s půlhodinou rezervou)
+function scrollGridToNow(){
+  if (view !== "grid") return;
+  const now = new Date(), ymd = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+  const target = day === ymd ? now.getHours()*60 + now.getMinutes() - 30 : null;
+  for (const sc of document.querySelectorAll("#grid .scroller")){
+    if (target === null){ sc.scrollLeft = 0; continue; }
+    const ths = [...sc.querySelectorAll("thead th[data-t]")], th = ths.find(x => +x.dataset.t >= target) || ths[ths.length-1];
+    const court = sc.querySelector("thead th.court");
+    if (th) sc.scrollLeft = Math.max(0, th.offsetLeft - (court ? court.offsetWidth : 0));
+  }
+}
+
+function renderView(){
+  document.querySelectorAll(".viewseg button").forEach(b => b.setAttribute("aria-selected", b.dataset.view === view));
+  document.getElementById("picks").hidden = view !== "list";
+  document.getElementById("gridview").hidden = view !== "grid";
+}
+document.querySelectorAll(".viewseg button").forEach(b => b.onclick = () => {
+  view = b.dataset.view; try { localStorage.setItem("padel-view", view); } catch(e){}
+  renderView(); scrollGridToNow();
+});
 
 function renderUpdated(){
   const g = new Date(DATA.generated), mins = Math.round((Date.now() - g) / 60000);
@@ -462,7 +494,7 @@ function renderUpdated(){
 
 function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
-function render(){ renderDays(); renderPicks(); renderGrid(); renderUpdated(); }
+function render(){ renderView(); renderDays(); renderPicks(); renderGrid(); renderUpdated(); }
 
 function setWork(on, rerender){
   work = on && LOGGED === true && !!PREFS;
