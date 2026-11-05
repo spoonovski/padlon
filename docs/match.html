@@ -172,14 +172,14 @@ table.who{border-collapse:separate;border-spacing:2px;font-variation-settings:"w
 .chat-log .empty{font-size:13px;color:var(--muted);margin:0}
 .chat-form{display:flex;gap:6px}
 .chat-form input{flex:1;min-width:0}
-.fullrow:empty{display:none}
-.seat.held{border-style:solid !important;outline-style:solid !important;color:var(--ball-3) !important}
-.fullrow{margin:8px 0 0}
-.full-tg[aria-pressed="true"]{background:var(--ball-3) !important;color:var(--ball-ink) !important}
-.full-tg[aria-pressed="true"] .knob{background:var(--ball-ink) !important}
-.full-tg[aria-pressed="true"] .knob::after{background:var(--ball-3) !important}
-.full-tg:disabled{opacity:1}
-.full-tag{display:inline-block;background:var(--ball-3);color:var(--ball-ink);font-weight:800;font-style:italic;text-transform:uppercase;font-size:13px;padding:4px 12px;letter-spacing:.04em}
+/* rezervovaná (držená) místa */
+.seat.held{background:transparent !important;outline:1.5px solid var(--ball-3) !important;color:var(--ball-3) !important;clip-path:none !important;display:inline-flex;align-items:center;gap:6px}
+.seat.held .x{border:0;background:transparent;color:inherit;cursor:pointer;font-weight:800;padding:0 0 0 2px;font-size:15px;line-height:1}
+button.seat.free{cursor:pointer;font:inherit}
+button.seat.free:hover{color:var(--ink)}
+.plan .spot.held .nm{background:transparent;color:var(--ball-3);outline:2px solid var(--ball-3)}
+.holdform{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 10px}
+.holdform select{flex:1;min-width:160px}
 /* přepínače Chat / Pozice */
 .tg{display:inline-flex;align-items:center;gap:8px}
 .tg .knob{width:30px;height:18px;border-radius:999px;background:rgba(255,255,255,.18);position:relative;flex:none}
@@ -662,9 +662,10 @@ function renderMatches(){
   let h = "", lastDate = null;
   for (const m of list){
     if (m.date !== lastDate){ h += `<h3 class="date-head">${dateTitle(m.date)}</h3>`; lastDate = m.date; }
-    const inIt = m.players.includes(me.id), closed = !!m.closed && m.players.length < 4, full = m.players.length >= 4, missing = 4 - m.players.length;
+    const inIt = m.players.includes(me.id), full = m.players.length >= 4, hs = holdsOf(m), free = freeSeats(m), missing = 4 - m.players.length;
     const seats = [...m.players.map(id => plink(id, esc(m.names[id] || id), `seat ${id === me.id ? "you" : ""}`)),
-      ...[...Array(Math.max(0, missing))].map(() => closed ? `<span class="seat free held">drženo</span>` : `<span class="seat free">volno</span>`)].join("");
+      ...hs.map((h, i) => `<span class="seat held" title="Drženo${h.name ? " pro " + esc(h.name) : " pro domluveného hráče"}">${h.name ? plink(h.for, esc(h.name)) : "drženo"}${inIt || h.for === me.id ? `<button class="x" data-hold-del="${i}" type="button" aria-label="Zrušit držené místo">×</button>` : ""}</span>`),
+      ...[...Array(Math.max(0, free))].map(() => inIt ? `<button class="seat free" data-hold-open type="button" title="Podržet místo pro někoho">volno · podržet</button>` : `<span class="seat free">volno</span>`)].join("");
     const invited = (m.invited || []).filter(p => !m.players.includes(p.id));
     let where;
     if (m.venue) where = `<a class="court" href="${m.url}" target="_blank" rel="noopener">${esc(m.venueName)}</a>`;
@@ -678,20 +679,21 @@ function renderMatches(){
     }
     h += `<div class="match" id="m-${m.id}" data-id="${m.id}">
       <div class="opt-head"><span class="opt-time">${fmt(m.start)}–${fmt(m.start + m.dur)}</span>${where}</div>
-      <div class="fullrow">${inIt
-        ? `<button class="btn ghost small tg full-tg" data-closed type="button" aria-pressed="${!!m.closed || m.players.length >= 4}" ${m.players.length >= 4 ? "disabled" : ""}><span class="knob" aria-hidden="true"></span>Plno</button>`
-        : full || closed ? `<span class="full-tag">Plno</span>` : ""}</div>
       <div class="slots4">${seats}</div>
       ${planHidden.has(m.id) ? "" : courtPlan(m)}
-      ${closed ? `<p class="note" style="margin:0 0 6px">Plno. ${missing === 1 ? "Volné místo je domluvené" : "Volná místa jsou domluvená"}, nepřidávej se, pokud nejsi ${missing === 1 ? "ten domluvený" : "mezi domluvenými"}.</p>` : !full ? `<p class="note" style="margin:0 0 6px">${missing === 1 ? "Chybí 1 hráč" : `Chybí ${missing} hráči`}</p>` : teamsFromPos(m) ? "" : fairTeams(m)}
+      ${holdForm(m)}
+      ${full ? (teamsFromPos(m) ? "" : fairTeams(m))
+        : free > 0 ? `<p class="note" style="margin:0 0 6px">${free === 1 ? "Chybí 1 hráč" : `Chybí ${free} hráči`}${hs.length ? `, ${hs.length === 1 ? "1 místo je drženo" : `${hs.length} místa jsou držená`}` : ""}</p>`
+        : `<p class="note" style="margin:0 0 6px">Zbývající ${hs.length === 1 ? "místo je drženo" : "místa jsou držená"} pro ${hs.map(h => h.name ? plink(h.for, esc(h.name)) : "domluveného hráče").join(" a ")}.</p>`}
       ${invited.length ? `<p class="note" style="margin:0 0 6px">Můžou: ${invited.map(p => esc(p.name)).join(", ")}</p>` : ""}
       ${freeLine ? `<p class="note" style="margin:0 0 8px">${freeLine}</p>` : ""}
       ${m.booked ? `<p class="booked" style="margin:0 0 8px">✓ Zarezervoval(a) ${plink(m.booked, esc(m.names[m.booked] || "někdo"))}</p>` : ""}
       ${payBlock(m)}
       <div class="actions">
         ${inIt ? `<button class="btn ghost small" data-leave type="button">Nejdu</button>`
-               : full ? `<button class="btn small" data-join type="button" disabled>Plno</button>`
-               : closed ? `<button class="btn ghost small" data-join type="button">Jsem domluvený, přidat se</button>`
+               : myHold(m) ? `<button class="btn ball small" data-join type="button">Přidat se (drženo pro tebe)</button>`
+               : full || !joinUpdate(m) ? `<button class="btn small" data-join type="button" disabled>Plno</button>`
+               : free <= 0 ? `<button class="btn ghost small" data-join type="button">Jsem domluvený, přidat se</button>`
                : `<button class="btn small" data-join type="button">Přidat se</button>`}
         ${inIt && !m.venue && courts ? `<select class="inline-select" data-venue aria-label="Kde hrajeme"><option value="">Vybrat místo…</option>${venueList().map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join("")}</select>` : ""}
         ${inIt && m.venue && !m.booked ? `<button class="btn ball small" data-book type="button">Zarezervoval jsem</button>` : ""}
@@ -715,13 +717,13 @@ function renderMatches(){
   $("matches").querySelectorAll(".match").forEach(el => {
     const m = matches.find(x => x.id === el.dataset.id);
     const act = (sel, fn) => { const b = el.querySelector(sel); if (b) b.onclick = async () => { b.disabled = true; try { await fn(); } catch(e){ b.disabled = false; showError("Akce se nepovedla: " + e.message); } }; };
-    act("[data-join]", () => api.updateMatch(m.id, {players: [...m.players, me.id].slice(0,4), [`names.${me.id}`]: me.name}));
+    act("[data-join]", async () => { const upd = joinUpdate(m); if (upd) await api.updateMatch(m.id, upd); });
     act("[data-leave]", () => api.updateMatch(m.id, {players: m.players.filter(id => id !== me.id), [`pos.${me.id}`]: null, ...(m.booked === me.id ? {booked: null, qr: null, price: null, paid: []} : {})}));
     act("[data-book]", () => api.updateMatch(m.id, {booked: me.id}));
     act("[data-unbook]", () => api.updateMatch(m.id, {booked: null, qr: null, price: null, paid: []}));
     wirePay(el, m);
     wirePlan(el, m);
-    act("[data-closed]", () => api.updateMatch(m.id, {closed: !m.closed}));
+    wireHolds(el, m);
     el.querySelector("[data-plan]").onclick = () => {
       planShown.has(m.id) ? planShown.delete(m.id) : planShown.add(m.id); savePlanShown(); renderMatches();
     };
@@ -748,6 +750,61 @@ const ended = m => { const d = dateOf(m.date); d.setMinutes(m.start + m.dur); re
 const allNames = () => { const n = Object.fromEntries(players().map(p => [p.id, p.name])); for (const m of matches) Object.assign(n, m.names || {}); return n; };
 let resultOpen = null, resultDraft = null;
 
+// ---------------------------------------------------------------- držená místa
+// m.holds = [{by, for, name, pos}]: hráč zápasu drží místo pro konkrétního registrovaného hráče
+// (for = jeho uid) nebo pro kohokoliv domluveného (for = null). pos = pozice na kurtu nebo null.
+const holdsOf = m => (m.holds || []).filter(h => !h.for || !m.players.includes(h.for)).slice(0, Math.max(0, 4 - m.players.length));
+const freeSeats = m => 4 - m.players.length - holdsOf(m).length;
+const myHold = m => holdsOf(m).find(h => h.for === me.id);
+// smí se přidat (a případně na pozici k)? Vrátí update pro Firestore, nebo null
+function joinUpdate(m, k = null){
+  if (m.players.includes(me.id) || m.players.length >= 4) return null;
+  const hs = holdsOf(m);
+  let use = myHold(m);                                 // drženo přímo pro mě
+  if (k !== null){
+    const hk = hs.find(h => h.pos === k);
+    if (hk && hk.for && hk.for !== me.id) return null;  // pozice držená pro někoho jiného
+    if (!use && hk && !hk.for) use = hk;
+  }
+  if (!use && freeSeats(m) <= 0) use = hs.find(h => !h.for);   // jen domluvený bez jména
+  if (!use && freeSeats(m) <= 0) return null;
+  const upd = {players: [...m.players, me.id], [`names.${me.id}`]: me.name};
+  if (use) upd.holds = (m.holds || []).filter(h => h !== use);
+  const pk = k !== null ? k : use && use.pos !== null && use.pos !== undefined ? use.pos : null;
+  if (pk !== null && !posMap(m)[pk]) upd[`pos.${me.id}`] = pk;
+  return upd;
+}
+let holdOpen = null;                                   // {id, pos} otevřený výběr, pro koho držet
+function holdForm(m){
+  if (!holdOpen || holdOpen.id !== m.id) return "";
+  const taken = new Set([...m.players, ...holdsOf(m).map(h => h.for).filter(Boolean)]);
+  const opts = players().filter(p => !taken.has(p.id)).sort((a,b) => a.name.localeCompare(b.name, "cs"));
+  const where = holdOpen.pos !== null ? ` na pozici ${holdOpen.pos < 2 ? "Tým A" : "Tým B"} · ${SIDE[holdOpen.pos]}` : "";
+  return `<div class="holdform"><select data-hold-who aria-label="Pro koho držet místo${where}">
+      <option value="">Kdokoliv domluvený (bez jména)</option>
+      ${opts.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}
+    </select><button class="btn small" data-hold-save type="button">Držet místo${where ? " " + esc(SIDE[holdOpen.pos].toLowerCase()) : ""}</button>
+    <button class="btn ghost small" data-hold-cancel type="button">Zrušit</button></div>`;
+}
+function wireHolds(el, m){
+  el.querySelectorAll("[data-hold-open]").forEach(b => b.onclick = () => { holdOpen = {id: m.id, pos: null}; renderMatches(); });
+  el.querySelectorAll("[data-hold-del]").forEach(b => b.onclick = async () => {
+    const h = holdsOf(m)[+b.dataset.holdDel]; b.disabled = true;
+    try { await api.updateMatch(m.id, {holds: (m.holds || []).filter(x => x !== h)}); } catch(e){ b.disabled = false; showError("Rezervaci místa se nepodařilo zrušit: " + e.message); }
+  });
+  const c = el.querySelector("[data-hold-cancel]"); if (c) c.onclick = () => { holdOpen = null; renderMatches(); };
+  const sv = el.querySelector("[data-hold-save]");
+  if (sv) sv.onclick = async () => {
+    const who = el.querySelector("[data-hold-who]").value, p = players().find(x => x.id === who);
+    if (freeSeats(m) <= 0) return;
+    const pos = holdOpen.pos;
+    const h = {by: me.id, for: p ? p.id : null, name: p ? p.name : null, pos: pos !== null && !posMap(m)[pos] && !holdsOf(m).some(x => x.pos === pos) ? pos : null};
+    sv.disabled = true;
+    try { await api.updateMatch(m.id, {holds: [...holdsOf(m), h]}); holdOpen = null; renderMatches(); }
+    catch(e){ sv.disabled = false; showError("Místo se nepodařilo podržet: " + e.message); }
+  };
+}
+
 // ---------------------------------------------------------------- kurt a chat v zápase
 // Pozice na kurtu: m.pos = {uid: 0..3}. 0 = tým A levá (revés), 1 = tým A pravá (drive),
 // 2 = tým B levá, 3 = tým B pravá. Vlevo na půdorysu tým A, vpravo tým B.
@@ -763,14 +820,20 @@ function teamsFromPos(m){
   return null;
 }
 function courtPlan(m){
-  const at = posMap(m), inIt = m.players.includes(me.id), full = m.players.length >= 4;
+  const at = posMap(m), inIt = m.players.includes(me.id);
   const spot = k => {
     const id = at[k];
     if (id){
       const mine = id === me.id;
       return `<button type="button" class="spot ${mine ? "you" : ""}" data-pos="${k}" ${mine ? 'title="Kliknutím uvolníš místo"' : "disabled"}><span class="nm">${esc(m.names[id] || id)}</span><span class="sd">${SIDE[k]}</span></button>`;
     }
-    const can = inIt || !full;
+    const h = holdsOf(m).find(x => x.pos === k);
+    if (h){
+      const can = !inIt && !!joinUpdate(m, k);
+      return `<button type="button" class="spot held" data-pos="${k}" ${can ? "" : "disabled"} title="Drženo${h.name ? " pro " + esc(h.name) : ""}"><span class="nm">${h.name ? esc(h.name) : "Drženo"}</span><span class="sd">${h.name ? "drženo · " : ""}${SIDE[k]}</span></button>`;
+    }
+    const placed = inIt && Object.values(at).includes(me.id);
+    const can = inIt ? (!placed || freeSeats(m) > 0) : !!joinUpdate(m, k);
     return `<button type="button" class="spot" data-pos="${k}" ${can ? "" : "disabled"} aria-label="${k < 2 ? "Tým A" : "Tým B"}, ${SIDE[k]}"><span class="add">+</span><span class="sd">${SIDE[k]}</span></button>`;
   };
   const placed = new Set(Object.values(at));
@@ -786,15 +849,15 @@ function wirePlan(el, m){
     const k = +b.dataset.pos, at = posMap(m);
     b.disabled = true;
     try {
+      const inIt = m.players.includes(me.id), placed = Object.values(at).includes(me.id);
       if (at[k] === me.id) await api.updateMatch(m.id, {[`pos.${me.id}`]: null});
-      else if (!at[k]){
-        const upd = {[`pos.${me.id}`]: k};
-        if (!m.players.includes(me.id)){
-          if (m.players.length >= 4) return;
-          upd.players = [...m.players, me.id]; upd[`names.${me.id}`] = me.name;
-        }
-        await api.updateMatch(m.id, upd);
+      else if (!at[k] && inIt && placed){
+        // už stojím jinde: kliknutím na volné místo ho držím pro někoho dalšího
+        if (holdsOf(m).some(h => h.pos === k)) return;
+        holdOpen = {id: m.id, pos: k}; renderMatches(); return;
       }
+      else if (!at[k] && inIt) await api.updateMatch(m.id, {[`pos.${me.id}`]: k});
+      else if (!at[k]){ const upd = joinUpdate(m, k); if (upd) await api.updateMatch(m.id, upd); }
     } catch(e){ b.disabled = false; showError("Místo se nepodařilo uložit: " + e.message); }
   });
 }
@@ -1093,7 +1156,7 @@ async function shareMatch(m){
   const url = location.origin + location.pathname + "#m-" + m.id;
   const text = `🎾 Padel ${dateTitle(m.date).toLowerCase()} ${fmt(m.start)}–${fmt(m.start + m.dur)}`
     + (m.venue ? ` · ${m.venueName}` : "")
-    + (missing > 0 && !m.closed ? ` · ${missing === 1 ? "chybí 1 hráč" : `chybí ${missing} hráči`}, přidej se:` : " · plno");
+    + (freeSeats(m) > 0 ? ` · ${freeSeats(m) === 1 ? "chybí 1 hráč" : `chybí ${freeSeats(m)} hráči`}, přidej se:` : " · plno");
   try{
     if (navigator.share){ await navigator.share({text, url}); return; }
     await navigator.clipboard.writeText(`${text} ${url}`);
