@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Žebříček</title>
+<meta name="theme-color" content="#eef3f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1c2e" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Padel">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --glass:#eef3f7; --paper:#ffffff; --ink:#142235; --muted:#5d6b7e; --line:#d6dee8; --busy:#e3e8ef;
+  --turf-1:#cfe0f3; --turf-2:#8fb5e2; --turf-3:#2f6fc0;
+  --ball-2:#eef8a8; --ball-3:#d6f03a; --ball-ink:#1d2a05; --warn:#b4471f;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --glass:#0f1c2e; --paper:#16263b; --ink:#e8eef6; --muted:#93a3b8; --line:#26384f;
+    --busy:#1c2d44; --turf-1:#1f3a5e; --turf-2:#2b5c94; --turf-3:#4b8ee0;
+    --ball-2:#5d6a1c; --ball-3:#d6f03a; --warn:#f08a5d;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--glass);color:var(--ink);
+  font-family:Archivo, system-ui, sans-serif;font-size:16px;line-height:1.45;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--turf-3);outline-offset:2px}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 72px}
+[hidden]{display:none !important}
+a{color:var(--turf-3)}
+
+.tabs{display:inline-flex;background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:3px;margin-bottom:18px}
+.tabs a{padding:7px 16px;border-radius:999px;text-decoration:none;color:var(--ink);font-weight:650;font-size:15px}
+.tabs a[aria-current="page"]{background:var(--ink);color:var(--glass)}
+
+header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:18px}
+h1{margin:0;font-weight:800;font-size:clamp(34px,8vw,56px);line-height:.92;letter-spacing:-.01em;font-variation-settings:"wdth" 125}
+.rule{font-size:14px;color:var(--muted);text-align:right}
+.rule b{color:var(--ink)}
+
+.seg{display:inline-flex;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:3px;margin-bottom:14px}
+.seg button{border:0;background:transparent;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:15px;font-weight:650}
+.seg button[aria-selected="true"]{background:var(--ball-3);color:var(--ball-ink)}
+
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:18px}
+.card h2{margin:0 0 4px;font-size:20px;font-weight:700;font-variation-settings:"wdth" 110}
+.sub{margin:0 0 12px;color:var(--muted);font-size:14px}
+.empty{color:var(--muted);margin:0}
+.err{color:var(--warn)}
+
+.pending{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--ball-2);border-radius:12px;padding:12px 14px;margin-bottom:18px;font-weight:600}
+.pending a{white-space:nowrap;font-weight:700;color:var(--ink)}
+
+/* pódium pro první tři */
+.podium{display:grid;grid-template-columns:1fr 1.15fr 1fr;align-items:end;gap:8px;margin:4px 0 14px}
+.step{text-align:center;display:grid;gap:4px}
+.step .who{font-weight:700;font-size:15px;line-height:1.2;overflow-wrap:anywhere}
+.step .pts{font-size:13px;color:var(--muted)}
+.step .block{border-radius:10px 10px 4px 4px;display:grid;place-items:center;font-weight:800;font-size:26px;font-variation-settings:"wdth" 120}
+.step.p1 .block{height:96px;background:var(--ball-3);color:var(--ball-ink)}
+.step.p2 .block{height:72px;background:var(--turf-2)}
+.step.p3 .block{height:54px;background:var(--turf-1)}
+.step.you .who::after{content:" (ty)";color:var(--muted);font-weight:400}
+
+table.board{width:100%;border-collapse:collapse;font-size:15px}
+.board th{font-size:12px;color:var(--muted);font-weight:600;text-align:right;padding:0 6px 6px;white-space:nowrap}
+.board th:nth-child(2){text-align:left}
+.board td{padding:10px 6px;border-top:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}
+.board td.n{text-align:left;font-weight:650}
+.board td.rank{width:30px;color:var(--muted);font-weight:700;text-align:left}
+.board td.pct{color:var(--muted)}
+.board td.pts{font-weight:800;font-size:17px}
+.board tr.you td{background:var(--ball-2)}
+.board tr.you td:first-child{border-radius:8px 0 0 8px}
+.board tr.you td:last-child{border-radius:0 8px 8px 0}
+@media (max-width:420px){ .board .pct{display:none} }
+
+.recent{padding:10px 0;border-top:1px solid var(--line);font-size:14px}
+.recent:first-of-type{border-top:0;padding-top:0}
+.recent .when{color:var(--muted);font-size:13px}
+.recent b{font-weight:700}
+.recent .pts3{font-weight:700;color:var(--turf-3);white-space:nowrap}
+.login{line-height:1.55}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="tabs" aria-label="Sekce">
+    <a href="./">Kurty</a>
+    <a href="match.html">Zápasy</a>
+    <a href="leaderboard.html" aria-current="page">Žebříček</a>
+  </nav>
+
+  <header class="top">
+    <h1>Žeb&shy;říček</h1>
+    <div class="rule">Výhra <b>3 body</b><br>prohra 0</div>
+  </header>
+
+  <p class="err" id="error" role="alert" hidden></p>
+
+  <section class="card login" id="login" hidden>
+    <h2>Nejdřív se přihlas</h2>
+    <p class="sub" style="margin:0">Žebříček vidí jen hráči z party. Přihlásit nebo zaregistrovat se můžeš v záložce <a href="match.html">Zápasy</a>.</p>
+  </section>
+
+  <div id="app" hidden>
+    <div class="pending" id="pending" hidden></div>
+
+    <div class="seg" role="tablist" aria-label="Žebříček">
+      <button role="tab" id="tab-solo" aria-selected="true" aria-controls="board-card" type="button">Jednotlivci</button>
+      <button role="tab" id="tab-pairs" aria-selected="false" aria-controls="board-card" type="button">Dvojice</button>
+    </div>
+
+    <section class="card" id="board-card" role="tabpanel">
+      <p class="sub" id="board-sub"></p>
+      <div id="podium"></div>
+      <div id="board"></div>
+    </section>
+
+    <section class="card">
+      <h2>Poslední výsledky</h2>
+      <div id="recent"></div>
+    </section>
+  </div>
+</div>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const DOW_LONG = ["neděle","pondělí","úterý","středa","čtvrtek","pátek","sobota"];
+const fmt = m => String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
+const dateOf = ymd => { const [y,m,d] = ymd.split("-").map(Number); return new Date(y,m-1,d); };
+const dateTxt = ymd => { const d = dateOf(ymd); return `${DOW_LONG[d.getDay()]} ${d.getDate()}. ${d.getMonth()+1}.`; };
+function showError(msg){ const e = $("error"); e.textContent = msg; e.hidden = !msg; }
+
+let me = null, roster = null, matches = [], mode = "solo";
+try { if (localStorage.getItem("padel-board") === "pairs") mode = "pairs"; } catch(e){}
+
+const names = () => {
+  const n = {};
+  for (const m of matches) Object.assign(n, m.names || {});
+  for (const p of roster || []) n[p.id] = p.name;
+  return n;
+};
+const known = id => !roster || roster.some(p => p.id === id);
+const results = () => matches.filter(m => Array.isArray(m.winners) && Array.isArray(m.losers) && m.winners.length && m.losers.length);
+
+// Body: výhra 3, prohra 0. Pořadí: body, pak úspěšnost, pak počet zápasů.
+function table(kind){
+  const st = {};
+  const add = (key, ids, won) => {
+    const s = st[key] ||= {key, ids, pts: 0, w: 0, l: 0};
+    if (won){ s.pts += 3; s.w++; } else s.l++;
+  };
+  for (const m of results()){
+    if (kind === "solo"){
+      m.winners.forEach(id => add(id, [id], true));
+      m.losers.forEach(id => add(id, [id], false));
+    } else {
+      if (m.winners.length === 2){ const ids = [...m.winners].sort(); add(ids.join("+"), ids, true); }
+      if (m.losers.length === 2){ const ids = [...m.losers].sort(); add(ids.join("+"), ids, false); }
+    }
+  }
+  const n = names();
+  const label = r => r.ids.map(id => n[id] || "?").join(" & ");
+  return Object.values(st)
+    .filter(r => r.ids.every(known))
+    .map(r => ({...r, label: label(r), pct: Math.round(100 * r.w / (r.w + r.l))}))
+    .sort((a,b) => b.pts - a.pts || b.pct - a.pct || (b.w + b.l) - (a.w + a.l) || a.label.localeCompare(b.label, "cs"));
+}
+
+function render(){
+  $("tab-solo").setAttribute("aria-selected", mode === "solo");
+  $("tab-pairs").setAttribute("aria-selected", mode === "pairs");
+  $("board-sub").textContent = mode === "solo"
+    ? "Body sbírá každý hráč sám za sebe, ať hraje s kýmkoliv."
+    : "Stejná dvojice dohromady, bez ohledu na pořadí jmen.";
+  const rows = table(mode);
+  const isMe = r => me && r.ids.includes(me);
+  if (!rows.length){
+    $("podium").innerHTML = "";
+    $("board").innerHTML = `<p class="empty">${mode === "solo" ? "Zatím žádný zapsaný výsledek." : "Zatím žádný výsledek zápasu dvojic."} Výsledek zapíšeš po zápase v záložce <a href="match.html#odehrane">Zápasy</a>.</p>`;
+  } else {
+    // pořadí se stejnými body sdílí místo
+    let rank = 0, prev = null;
+    rows.forEach((r, i) => { if (r.pts !== prev){ rank = i + 1; prev = r.pts; } r.rank = rank; });
+    const top = rows.slice(0, 3);
+    $("podium").innerHTML = top.length >= 2 ? `<div class="podium">${[1,0,2].map(i => top[i] ? `
+      <div class="step p${i+1} ${isMe(top[i]) ? "you" : ""}"><span class="who">${esc(top[i].label)}</span><span class="pts">${top[i].pts} b.</span><span class="block">${top[i].rank}</span></div>` : "<div></div>").join("")}</div>` : "";
+    let h = `<table class="board"><thead><tr><th></th><th>${mode === "solo" ? "Hráč" : "Dvojice"}</th><th>Zápasy</th><th>V–P</th><th class="pct">Úspěšnost</th><th>Body</th></tr></thead><tbody>`;
+    for (const r of rows){
+      h += `<tr class="${isMe(r) ? "you" : ""}"><td class="rank">${r.rank}.</td><td class="n">${esc(r.label)}</td><td>${r.w + r.l}</td><td>${r.w}–${r.l}</td><td class="pct">${r.pct} %</td><td class="pts">${r.pts}</td></tr>`;
+    }
+    $("board").innerHTML = h + `</tbody></table>`;
+  }
+
+  const n = names();
+  const recent = results().sort((a,b) => b.date.localeCompare(a.date) || b.start - a.start).slice(0, 8);
+  $("recent").innerHTML = recent.length ? recent.map(m => `<div class="recent">
+      <div class="when">${dateTxt(m.date)} · ${fmt(m.start)}${m.venueName ? " · " + esc(m.venueName) : ""}</div>
+      🏆 <b>${m.winners.map(id => esc(n[id] || "?")).join(" & ")}</b> porazili ${m.losers.map(id => esc(n[id] || "?")).join(" & ")}${m.score ? " · " + esc(m.score) : ""}</div>`).join("")
+    : `<p class="empty">Tady se ukážou odehrané zápasy s výsledkem.</p>`;
+
+  // odehrané zápasy, které čekají na výsledek
+  const now = new Date();
+  const waiting = matches.filter(m => { if (m.winners || !m.players?.length) return false; const d = dateOf(m.date); d.setMinutes(m.start + m.dur); return d <= now; });
+  const mine = waiting.filter(m => me && m.players.includes(me));
+  $("pending").hidden = !waiting.length;
+  if (waiting.length) $("pending").innerHTML = `<span>${mine.length ? `U ${mine.length === 1 ? "tvého zápasu" : `${mine.length} tvých zápasů`} chybí výsledek.` : `${waiting.length === 1 ? "1 odehraný zápas čeká" : `${waiting.length} odehrané zápasy čekají`} na výsledek.`}</span><a href="match.html#odehrane">Zapsat</a>`;
+}
+
+$("tab-solo").onclick = () => { mode = "solo"; try { localStorage.setItem("padel-board", mode); } catch(e){} render(); };
+$("tab-pairs").onclick = () => { mode = "pairs"; try { localStorage.setItem("padel-board", mode); } catch(e){} render(); };
+// šipky mezi podzáložkami
+document.querySelector(".seg").addEventListener("keydown", e => {
+  if (e.key === "ArrowRight" || e.key === "ArrowLeft"){ (mode === "solo" ? $("tab-pairs") : $("tab-solo")).click(); (mode === "solo" ? $("tab-solo") : $("tab-pairs")).focus(); }
+});
+
+(async () => {
+  let api = null;
+  try { api = await (await import("./fb.js?v=" + Date.now())).connect(showError); }
+  catch(e){ showError("Připojení k Firebase selhalo: " + e.message); }
+  if (!api){ $("login").hidden = false; return; }
+  let unsubs = [];
+  api.onAuth(u => {
+    unsubs.forEach(f => typeof f === "function" && f()); unsubs = [];
+    me = u ? u.uid : null;
+    $("login").hidden = !!u; $("app").hidden = !u;
+    if (!u) return;
+    unsubs.push(api.watchPlayers(rows => { roster = rows; render(); }));
+    unsubs.push(api.watchMatches("2000-01-01", rows => { matches = rows; render(); }));
+  });
+})();
+</script>
+</body>
+</html>
