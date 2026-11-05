@@ -172,7 +172,7 @@ table.who{border-collapse:separate;border-spacing:2px;font-variation-settings:"w
 .chat-log .empty{font-size:13px;color:var(--muted);margin:0}
 .chat-form{display:flex;gap:6px}
 .chat-form input{flex:1;min-width:0}
-.chat-btn .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ball-3);margin-left:6px;vertical-align:middle}
+.chat-btn .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ball-ink);margin-left:6px;vertical-align:middle}
 .seat{font-size:14px;font-weight:600;padding:5px 10px;border-radius:8px;background:var(--turf-1)}
 .seat.free{background:transparent;border:1px dashed var(--line);color:var(--muted);font-weight:500}
 .seat.you{background:var(--ball-3);color:var(--ball-ink)}
@@ -786,7 +786,7 @@ const getSeen = id => { try { return +localStorage.getItem(seenKey(id)) || 0; } 
 const setSeen = (id, n) => { try { localStorage.setItem(seenKey(id), n); } catch(e){} };
 function chatButton(m){
   const n = m.chatN || 0, unread = n > getSeen(m.id) && !chatOpen.has(m.id);
-  return `<button class="btn ghost small chat-btn" data-chat type="button" aria-expanded="${chatOpen.has(m.id)}">Chat${n ? " · " + n : ""}${unread ? '<span class="dot" aria-label="nové zprávy"></span>' : ""}</button>`;
+  return `<button class="btn ball small chat-btn" data-chat type="button" aria-expanded="${chatOpen.has(m.id)}">Chat${n ? " · " + n : ""}${unread ? '<span class="dot" aria-label="nové zprávy"></span>' : ""}</button>`;
 }
 function chatLog(m){
   const list = chatMsgs[m.id];
