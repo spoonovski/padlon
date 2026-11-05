@@ -124,3 +124,11 @@ Data se ukládají do Firebase (zdarma, limit je pro partu nedosažitelný).
 
 Zapisovat může jen zaregistrovaný hráč a své volno a profil mění jen on sám. Zapomenuté heslo obnovit nejde (není kam poslat e-mail): smaž hráče ve Firebase → Authentication → Users a ať se zaregistruje znovu.
 
+---
+
+## Tlačítko „Zkontrolovat teď“ pro všechny (Cloudflare Worker)
+
+Malý spouštěč zdarma na Cloudflare drží GitHub token, takže tlačítko funguje každému přihlášenému
+hráči. Navíc spouští kontrolu spolehlivě každých 10 minut (plánovač GitHubu ji často pouští jen jednou za hodinu).
+Kód je v `worker/refresh-worker.js`, adresa workeru patří do `docs/app-config.js`.
+

@@ -29,6 +29,7 @@ export async function connect(showError = console.error){
     },
     signIn: async (name, pass) => (await au.signInWithEmailAndPassword(auth, email(name), pass)).user.uid,
     signOut: () => au.signOut(auth),
+    getIdToken: () => auth.currentUser ? auth.currentUser.getIdToken() : null,
     deleteAccount: async (name, pass, upcoming) => {
       const u = auth.currentUser;
       await au.reauthenticateWithCredential(u, au.EmailAuthProvider.credential(email(name), pass));
