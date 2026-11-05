@@ -212,7 +212,7 @@ let api = null;
 async function connect(){
   if (window.__MOCK_DB__) return window.__MOCK_DB__;
   let cfg = null;
-  try { cfg = (await import("./firebase-config.js")).firebaseConfig; } catch(e){}
+  try { cfg = (await import("./firebase-config.js?v=" + Date.now())).firebaseConfig; } catch(e){}
   if (!cfg || !cfg.apiKey) return null;
   const V = "10.12.2";
   const [{initializeApp}, fs, au] = await Promise.all([
