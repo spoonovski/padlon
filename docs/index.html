@@ -142,21 +142,32 @@ table.grid{border-collapse:separate;border-spacing:2px;font-variation-settings:"
 .grid td.wstart{box-shadow:inset 2px 0 0 var(--win)}
 .grid td.w.c3.wstart,.grid td.w.c2.wstart{box-shadow:inset 2px 0 0 var(--win)}
 
-/* mřížka volných půlhodin */
-table.slots{border-collapse:separate;border-spacing:0;width:100%}
-.slots th.court{width:1%}
-.slots th,.slots td{padding:0}
-.slots thead th.hr{font-size:13px;font-weight:800;font-style:italic;color:var(--ink);text-align:left;padding:0 0 4px 6px;height:22px;border-left:1px solid rgba(255,255,255,.18)}
-.slots td{width:16px;min-width:16px;height:30px;padding:3px 0 !important;background-clip:content-box}
-.slots td.h0{border-left:1px solid rgba(255,255,255,.18);padding-left:4px !important}
-.slots td.h1{padding-left:1px !important}
-.slots td.free{background-color:var(--ball-3)}
-.slots td.busy{background-color:rgba(255,255,255,.1)}
-.slots td.closed{background-color:transparent}
-.slots td.free.out{background-color:rgba(212,255,58,.3)}
-.slots td.past{opacity:.3}
-.slots th.court{position:sticky;left:0;z-index:1;background:var(--paper);text-align:left;font-size:13px;font-weight:600;color:var(--ink);padding:0 10px 0 8px;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis}
-.slots tbody tr + tr td, .slots tbody tr + tr th{border-top:0}
+/* mřížka volných půlhodin: každá buňka obsahuje blok <i>, ten nese barvu (spolehlivé i v Safari) */
+.slots-wrap{background:var(--paper);padding:8px 8px 6px;overflow-x:auto}
+table.slots{border-collapse:collapse;border-spacing:0;width:100%;table-layout:fixed}
+.slots col.c-court{width:64px}
+.slots th,.slots td{padding:0;border:0;background:none}
+.slots thead th.hr{font-size:12px;font-weight:800;font-style:italic;color:var(--ink);text-align:left;padding:0 0 4px 3px;height:18px;
+  border-left:1px solid rgba(255,255,255,.22);white-space:nowrap;overflow:visible}
+.slots td{height:26px;vertical-align:middle}
+.slots td.h0{border-left:1px solid rgba(255,255,255,.22)}
+.slots td i{display:block;height:20px;margin-left:1px}
+.slots td.h0 i{margin-left:2px}
+.slots td.free i{background:var(--ball-3)}
+.slots td.busy i{background:rgba(255,255,255,.12)}
+.slots td.closed i{background:transparent}
+.slots td.free.out i{background:rgba(212,255,58,.3)}
+.slots td.past i{opacity:.3}
+.slots th.court{text-align:left;font-size:12px;font-weight:700;color:var(--ink);padding:0 6px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  background:none !important;clip-path:none !important;position:sticky;left:0;z-index:1}
+.slots tbody th.court{background:var(--paper) !important}
+@media (max-width:699px){ .slots thead th.hr.odd span{visibility:hidden} }
+@media (min-width:700px){
+  .slots col.c-court{width:96px}
+  .slots th.court{font-size:14px}
+  .slots td{height:32px}.slots td i{height:24px}
+  .slots thead th.hr{font-size:14px}
+}
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted);margin:2px 0 18px}
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .legend i{width:16px;height:12px;border-radius:3px;display:inline-block}
@@ -495,12 +506,12 @@ function renderGrid(){
       <a href="${v.url}" target="_blank" rel="noopener">Rezervovat</a></div>`;
     if (!v.ok) html += `<p class="stale">${v.rows.length ? "Data jsou ze starší kontroly, rezervační systém teď neodpovídá." : "Rezervační systém teď neodpovídá, zkusí se to znovu při další kontrole."}</p>`;
     if (!rows.length){ html += `</section>`; continue; }
-    html += `<div class="scroller"><table class="slots"><thead><tr><th class="court"></th>`;
+    html += `<div class="slots-wrap"><table class="slots"><colgroup><col class="c-court">${cols.map(() => "<col>").join("")}</colgroup><thead><tr><th class="court"></th>`;
     for (let x=0; x<cols.length; x++){
       const t = slotMin(cols[x]);
       if (t % 60 === 0 || x === 0){
         const span = cols[x+1] !== undefined && slotMin(cols[x+1]) === t + 30 && t % 60 === 0 ? 2 : 1;
-        html += `<th class="hr" colspan="${span}" data-t="${t}">${t % 60 === 0 ? t/60 : ""}</th>`;
+        html += `<th class="hr ${(t/60) % 2 ? "odd" : ""}" colspan="${span}" data-t="${t}"><span>${t % 60 === 0 ? t/60 : ""}</span></th>`;
         if (span === 2) x++;
       }
     }
@@ -511,7 +522,7 @@ function renderGrid(){
       for (const i of cols){
         const t = slotMin(i), st = c[i] === "." || !c[i] ? "closed" : f[i] ? "free" : "busy";
         const cls = [st, t % 60 === 0 ? "h0" : "h1", f[i-1] && st === "free" ? "joinl" : "", f[i+1] && st === "free" ? "joinr" : "", !inWin(i) ? "out" : "", isPast(day,i) ? "past" : ""].join(" ");
-        html += `<td class="${cls}" title="${fmt(t)}–${fmt(t+30)} · ${st === "free" ? "volno" : st === "busy" ? "obsazeno" : "zavřeno"}"></td>`;
+        html += `<td class="${cls}" title="${fmt(t)}–${fmt(t+30)} · ${st === "free" ? "volno" : st === "busy" ? "obsazeno" : "zavřeno"}"><i></i></td>`;
       }
       html += `</tr>`;
     }
@@ -526,7 +537,7 @@ function scrollGridToNow(){
   if (view !== "grid") return;
   const now = new Date(), ymd = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
   const target = day === ymd ? now.getHours()*60 + now.getMinutes() - 30 : null;
-  for (const sc of document.querySelectorAll("#grid .scroller")){
+  for (const sc of document.querySelectorAll("#grid .slots-wrap")){
     if (target === null){ sc.scrollLeft = 0; continue; }
     const ths = [...sc.querySelectorAll("thead th[data-t]")], th = ths.find(x => +x.dataset.t >= target) || ths[ths.length-1];
     const court = sc.querySelector("thead th.court");
