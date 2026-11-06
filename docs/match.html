@@ -356,7 +356,7 @@ a.btn{text-decoration:none;display:inline-block}
 </div>
 
 <dialog id="confirm-dlg" class="confirm-dlg" aria-labelledby="confirm-txt"><p id="confirm-txt"></p>
-  <form method="dialog" class="confirm-actions"><button class="btn danger" value="ok" id="confirm-ok">Smazat</button><button class="btn ghost" value="no" autofocus>Zpět</button></form></dialog>
+  <form method="dialog" class="confirm-actions"><button class="btn danger" value="ok" id="confirm-ok">Smazat</button><button class="btn ghost" value="no" id="confirm-no" autofocus>Zpět</button></form></dialog>
 <dialog id="qr-dlg" class="qr-dlg" aria-label="QR kód pro platbu">
   <img id="qr-img" alt="QR kód pro platbu">
   <p id="qr-cap"></p>
@@ -802,9 +802,9 @@ function joinUpdate(m, k = null){
   return upd;
 }
 // potvrzovací okno; vrací true, když hráč potvrdí
-function confirmBox(text, okLabel = "Smazat"){
+function confirmBox(text, okLabel = "Smazat", noLabel = "Zpět"){
   const d = $("confirm-dlg");
-  $("confirm-txt").textContent = text; $("confirm-ok").textContent = okLabel;
+  $("confirm-txt").textContent = text; $("confirm-ok").textContent = okLabel; $("confirm-no").textContent = noLabel;
   d.returnValue = "";
   return new Promise(res => { d.onclose = () => res(d.returnValue === "ok"); d.showModal(); });
 }
@@ -1018,7 +1018,10 @@ function renderPlayed(){
       renderPlayed();
     };
     const sk = el.querySelector("[data-skip]");
-    if (sk) sk.onclick = async () => { sk.disabled = true; try { await api.deleteMatch(m.id); } catch(e){ sk.disabled = false; showError("Smazání se nepovedlo: " + e.message); } };
+    if (sk) sk.onclick = async () => {
+      const dt = dateTitle(m.date);
+      if (!await confirmBox(`Určitě jste nehráli? (${dt.charAt(0).toLowerCase() + dt.slice(1)} ${fmt(m.start)}) Zápas se smaže i s chatem a nejde to vrátit.`, "Ano, nehráli", "Ne, hráli")) return;
+      sk.disabled = true; try { await api.deleteMatch(m.id); } catch(e){ sk.disabled = false; showError("Smazání se nepovedlo: " + e.message); } };
     const f = el.querySelector(".form:not(.payform)"); if (f) wireResultForm(f, m);
     wirePay(el, m);
     wirePlan(el, m, true);
@@ -1245,7 +1248,10 @@ function highlightFromHash(){
 
 // ---------------------------------------------------------------- nový zápas
 function fillNewForm(){
-  $("nf-date").innerHTML = DAYS.map(d => `<option value="${d}">${dateTitle(d)}</option>`).join("");
+  // i 14 dní zpátky – odehraný zápas jde zapsat dodatečně (třeba když se omylem smazal)
+  const PAST = [...Array(14).keys()].map(k => { const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-14+k); return ymdOf(d); });
+  $("nf-date").innerHTML = DAYS.map(d => `<option value="${d}">${dateTitle(d)}</option>`).join("")
+    + `<optgroup label="Už odehrané">${PAST.reverse().map(d => `<option value="${d}">${dateTitle(d)}</option>`).join("")}</optgroup>`;
   $("nf-date").value = day;
   let st = ""; for (let i=0;i<=N-3;i++) st += `<option value="${slotMin(i)}">${fmt(slotMin(i))}</option>`;
   $("nf-start").innerHTML = st; $("nf-start").value = String(18*60);
@@ -1255,8 +1261,8 @@ function fillNewForm(){
 function newHint(){
   const date = $("nf-date").value, start = +$("nf-start").value, dur = +$("nf-dur").value, vid = $("nf-venue").value;
   const past = isPast(date, idxOf(start));
-  $("nf-create").disabled = past;
-  if (past){ $("nf-hint").textContent = "Tenhle čas už je pryč."; return; }
+  $("nf-create").disabled = false;
+  if (past){ $("nf-hint").textContent = "Zápas, který už proběhl: objeví se dole v Odehraných, ostatní se přidají přes „Hrál jsem taky“ a můžete zapsat výsledek."; return; }
   const fr = freeSummary(date, start, dur);
   if (!courts){ $("nf-hint").textContent = ""; return; }
   if (vid){
