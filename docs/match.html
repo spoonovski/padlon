@@ -304,7 +304,8 @@ a.btn{text-decoration:none;display:inline-block}
     <section class="card">
       <div class="card-head">
         <h2>Zápasy</h2>
-        <button class="btn ball small" id="new-open" type="button">+ Nový zápas</button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ball small" id="new-open" type="button">+ Nový zápas</button>
+        <button class="btn ghost small" id="past-open" type="button">+ Odehraný zápas</button></div>
       </div>
       <div class="form" id="new-form" hidden>
         <div class="row">
@@ -771,7 +772,7 @@ function renderMatches(){
     el.querySelector("[data-ics]").onclick = e => { e.preventDefault(); downloadIcs(m); };
     el.querySelector("[data-gcal]").href = googleCalUrl(m);
   });
-  syncChatListeners(list.map(m => m.id));
+  syncChatListeners(matches.map(m => m.id));
   highlightFromHash();
 }
 
@@ -931,7 +932,9 @@ const planHidden = {has: () => false};
 // chat je u zápasu otevřený, dokud si ho hráč nezavře (zavřené si pamatuje prohlížeč)
 const chatClosed = new Set((() => { try { return JSON.parse(localStorage.getItem("padel-chat-closed") || "[]"); } catch(e){ return []; } })());
 const saveChatClosed = () => { try { localStorage.setItem("padel-chat-closed", JSON.stringify([...chatClosed].slice(-50))); } catch(e){} };
-const chatOpen = {has: id => !chatClosed.has(id)};
+const chatPlayedOpen = new Set();                     // u odehraných je chat ve výchozím stavu zavřený
+const isPlayedId = id => { const m = matches.find(x => x.id === id); return !!m && ended(m); };
+const chatOpen = {has: id => isPlayedId(id) ? chatPlayedOpen.has(id) : !chatClosed.has(id)};
 const chatMsgs = {}, chatUnsub = {}, chatDraft = {};
 // poslouchá chaty otevřených zápasů, zavřené a zmizelé odpojí
 function syncChatListeners(ids){
@@ -968,10 +971,11 @@ function paintChat(id){
 }
 function wireChat(el, m){
   el.querySelector("[data-chat]").onclick = () => {
-    if (chatOpen.has(m.id)) chatClosed.add(m.id);
-    else { chatClosed.delete(m.id); setSeen(m.id, m.chatN || 0); }
-    saveChatClosed();
-    renderMatches();
+    const opening = !chatOpen.has(m.id);
+    if (ended(m)) opening ? chatPlayedOpen.add(m.id) : chatPlayedOpen.delete(m.id);
+    else { opening ? chatClosed.delete(m.id) : chatClosed.add(m.id); saveChatClosed(); }
+    if (opening) setSeen(m.id, m.chatN || 0);
+    renderMatches(); renderPlayed();
     if (chatOpen.has(m.id)){ const i = document.querySelector(`#m-${CSS.escape(m.id)} .chat-form input`); if (i) i.focus(); }
   };
   const f = el.querySelector(".chat-form"); if (!f) return;
@@ -1003,22 +1007,27 @@ function renderPlayed(){
     const joinBtn = canJoin ? `<button class="btn small" data-pjoin type="button">Hrál jsem taky</button>` : "";
     const addable = inIt && m.players.length < 4 ? players().filter(p => !m.players.includes(p.id)) : [];
     const addSel = addable.length ? `<div class="addp"><select data-addp aria-label="Přidat hráče do zápasu"><option value="">+ Přidat spoluhráče…</option>${addable.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></div>` : "";
+    const paidBtn = inIt && !m.booked ? `<button class="btn ghost small" data-paidcourt type="button">Kurt platil(a) jsem já</button>` : "";
     const leaveBtn = inIt && !m.winners ? `<button class="linkbtn" data-pleave type="button">Nehrál jsem</button>` : "";
     const head = `<div class="when">${dateTitle(m.date)}</div><div class="opt-head"><span class="opt-time">${fmt(m.start)}–${fmt(m.start + m.dur)}</span>${m.venue ? `<span class="court">${esc(m.venueName)}</span>` : ""}</div>`;
     if (m.winners){
-      h += `<div class="match" data-id="${m.id}">${head}
+      h += `<div class="match" id="m-${m.id}" data-id="${m.id}">${head}
         <p class="result">🏆 <b>${m.winners.map(id => plink(id, esc(names[id] || id))).join(" & ")}</b> porazili ${m.losers.map(id => plink(id, esc(names[id] || id))).join(" & ")}${m.score ? ` · ${esc(m.score)}` : ""}</p>
         ${planHidden.has(m.id) ? "" : courtPlan(m, true)}${addSel}
-        <div class="actions"><button class="linkbtn" data-result type="button">Opravit výsledek</button>${joinBtn}${planToggle(m)}</div>
-        ${resultOpen === m.id ? resultForm(m) : ""}${payBlock(m)}</div>`;
+        <div class="actions"><button class="linkbtn" data-result type="button">Opravit výsledek</button>${joinBtn}${chatButton(m)}${paidBtn}${planToggle(m)}</div>
+        ${chatPanel(m)}${resultOpen === m.id ? resultForm(m) : ""}${payBlock(m)}</div>`;
     } else {
-      h += `<div class="match" data-id="${m.id}">${head}
+      h += `<div class="match" id="m-${m.id}" data-id="${m.id}">${head}
         <p class="note" style="margin:6px 0 8px">Hráli: ${m.players.map(id => plink(id, esc(names[id] || id))).join(", ")}</p>
         ${planHidden.has(m.id) ? "" : courtPlan(m, true)}${addSel}
-        ${resultOpen === m.id ? resultForm(m) : `<div class="actions"><button class="btn ball small" data-result type="button">Zapsat výsledek</button>${joinBtn}${planToggle(m)}${leaveBtn}<button class="linkbtn" data-skip type="button">Nehráli jsme</button></div>`}${payBlock(m)}</div>`;
+        ${resultOpen === m.id ? resultForm(m) : `<div class="actions"><button class="btn ball small" data-result type="button">Zapsat výsledek</button>${joinBtn}${chatButton(m)}${paidBtn}${planToggle(m)}${leaveBtn}<button class="linkbtn" data-skip type="button">Nehráli jsme</button></div>`}${chatPanel(m)}${payBlock(m)}</div>`;
     }
   }
+  const ae = document.activeElement, focusChat = ae && ae.closest && ae.closest("#played .chat-form") ? ae.closest(".match").dataset.id : null;
+  const caret = focusChat ? ae.selectionStart : 0;
   $("played").innerHTML = h;
+  if (focusChat){ const i = document.querySelector(`#m-${CSS.escape(focusChat)} .chat-form input`); if (i){ i.focus(); i.setSelectionRange(caret, caret); } }
+  syncChatListeners(matches.map(m => m.id));
   $("played").querySelectorAll(".match").forEach(el => {
     const m = matches.find(x => x.id === el.dataset.id);
     const r = el.querySelector("[data-result]");
@@ -1040,6 +1049,10 @@ function renderPlayed(){
     const pj = el.querySelector("[data-pjoin]");
     if (pj) pj.onclick = async () => { const upd = joinUpdate(m); if (!upd) return; pj.disabled = true;
       try { await api.updateMatch(m.id, withSides(m, upd)); } catch(e){ pj.disabled = false; showError("Přidání se nepovedlo: " + e.message); } };
+    wireChat(el, m);
+    const pc = el.querySelector("[data-paidcourt]");
+    if (pc) pc.onclick = async () => { pc.disabled = true;
+      try { await api.updateMatch(m.id, {booked: me.id}); payOpen = m.id; renderPlayed(); } catch(e){ pc.disabled = false; showError("Nepodařilo se uložit: " + e.message); } };
     const ap = el.querySelector("[data-addp]");
     if (ap) ap.onchange = async () => {
       const p = players().find(x => x.id === ap.value); if (!p || m.players.length >= 4) return;
@@ -1266,20 +1279,20 @@ function highlightFromHash(){
 }
 
 // ---------------------------------------------------------------- nový zápas
+let nfMode = "new";                                   // "new" = naplánovat, "past" = zapsat odehraný (7 dní zpátky)
 function fillNewForm(){
-  // i 14 dní zpátky – odehraný zápas jde zapsat dodatečně (třeba když se omylem smazal)
-  const PAST = [...Array(14).keys()].map(k => { const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-14+k); return ymdOf(d); });
-  $("nf-date").innerHTML = DAYS.map(d => `<option value="${d}">${dateTitle(d)}</option>`).join("")
-    + `<optgroup label="Už odehrané">${PAST.reverse().map(d => `<option value="${d}">${dateTitle(d)}</option>`).join("")}</optgroup>`;
-  $("nf-date").value = day;
+  const PAST = [...Array(8).keys()].map(k => { const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-k); return ymdOf(d); });
+  const list = nfMode === "past" ? PAST : DAYS;
+  $("nf-date").innerHTML = list.map(d => `<option value="${d}">${dateTitle(d)}</option>`).join("");
+  $("nf-date").value = nfMode === "past" ? PAST[1] : (DAYS.includes(day) ? day : DAYS[0]);
   let st = ""; for (let i=0;i<=N-3;i++) st += `<option value="${slotMin(i)}">${fmt(slotMin(i))}</option>`;
   $("nf-start").innerHTML = st; $("nf-start").value = String(18*60);
-  $("nf-venue").innerHTML = `<option value="">Ještě nevím</option>` + venueList().map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join("");
+  $("nf-venue").innerHTML = `<option value="">${nfMode === "past" ? "Nevím / jinde" : "Ještě nevím"}</option>` + venueList().map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join("");
   newHint();
 }
 let nfPicked = [];
 function renderNfPlayers(){
-  const past = isPast($("nf-date").value, idxOf(+$("nf-start").value));
+  const past = nfMode === "past";
   $("nf-players").hidden = !past;
   $("nf-create").textContent = past ? "Založit odehraný zápas" : "Založit a přidat se";
   if (!past) return;
@@ -1296,7 +1309,8 @@ function newHint(){
   const date = $("nf-date").value, start = +$("nf-start").value, dur = +$("nf-dur").value, vid = $("nf-venue").value;
   const past = isPast(date, idxOf(start));
   $("nf-create").disabled = false;
-  if (past){ $("nf-hint").textContent = "Zápas, který už proběhl: objeví se dole v Odehraných, ostatní se přidají přes „Hrál jsem taky“ a můžete zapsat výsledek."; return; }
+  if (nfMode === "past" && !past){ $("nf-create").disabled = true; $("nf-hint").textContent = "Tenhle čas ještě nebyl. Pro budoucí zápas dej + Nový zápas."; return; }
+  if (past){ $("nf-create").disabled = nfMode !== "past"; $("nf-hint").textContent = nfMode === "past" ? "Zápas se objeví dole v Odehraných, pak vyberte strany a zapište výsledek." : "Tenhle čas už je pryč. Odehraný zápas zapíšeš přes + Odehraný zápas."; return; }
   const fr = freeSummary(date, start, dur);
   if (!courts){ $("nf-hint").textContent = ""; return; }
   if (vid){
@@ -1307,7 +1321,10 @@ function newHint(){
   }
 }
 ["nf-date","nf-start","nf-dur","nf-venue"].forEach(id => $(id).onchange = newHint);
-$("new-open").onclick = () => { const f = $("new-form"); f.hidden = !f.hidden; if (!f.hidden){ fillNewForm(); $("nf-date").focus(); } };
+const openNewForm = mode => { const f = $("new-form"); const same = !f.hidden && nfMode === mode;
+  f.hidden = same; nfMode = mode; if (!same){ nfPicked = []; fillNewForm(); $("nf-date").focus(); } };
+$("new-open").onclick = () => openNewForm("new");
+$("past-open").onclick = () => openNewForm("past");
 $("nf-cancel").onclick = () => { $("new-form").hidden = true; };
 $("nf-create").onclick = async () => {
   const b = $("nf-create"); b.disabled = true;
@@ -1316,7 +1333,7 @@ $("nf-create").onclick = async () => {
     await api.addMatch({
       date: $("nf-date").value, start: +$("nf-start").value, dur: +$("nf-dur").value,
       venue: v ? v.id : "", venueName: v ? v.name : "", url: v ? v.url : "",
-      ...(() => { const past = isPast($("nf-date").value, idxOf(+$("nf-start").value)), ids = [me.id, ...(past ? nfPicked : [])], nm = {};
+      ...(() => { const past = nfMode === "past", ids = [me.id, ...(past ? nfPicked : [])], nm = {};
         for (const id of ids) nm[id] = id === me.id ? me.name : (players().find(p => p.id === id) || {}).name || "?";
         return {players: ids, names: nm}; })(),
       invited: [],
