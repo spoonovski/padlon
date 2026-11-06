@@ -142,6 +142,21 @@ table.grid{border-collapse:separate;border-spacing:2px;font-variation-settings:"
 .grid td.wstart{box-shadow:inset 2px 0 0 var(--win)}
 .grid td.w.c3.wstart,.grid td.w.c2.wstart{box-shadow:inset 2px 0 0 var(--win)}
 
+/* mřížka volných půlhodin */
+table.slots{border-collapse:separate;border-spacing:0;width:100%}
+.slots th.court{width:1%}
+.slots th,.slots td{padding:0}
+.slots thead th.hr{font-size:13px;font-weight:800;font-style:italic;color:var(--ink);text-align:left;padding:0 0 4px 6px;height:22px;border-left:1px solid rgba(255,255,255,.18)}
+.slots td{width:16px;min-width:16px;height:30px;padding:3px 0 !important;background-clip:content-box}
+.slots td.h0{border-left:1px solid rgba(255,255,255,.18);padding-left:4px !important}
+.slots td.h1{padding-left:1px !important}
+.slots td.free{background-color:var(--ball-3)}
+.slots td.busy{background-color:rgba(255,255,255,.1)}
+.slots td.closed{background-color:transparent}
+.slots td.free.out{background-color:rgba(212,255,58,.3)}
+.slots td.past{opacity:.3}
+.slots th.court{position:sticky;left:0;z-index:1;background:var(--paper);text-align:left;font-size:13px;font-weight:600;color:var(--ink);padding:0 10px 0 8px;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis}
+.slots tbody tr + tr td, .slots tbody tr + tr th{border-top:0}
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted);margin:2px 0 18px}
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .legend i{width:16px;height:12px;border-radius:3px;display:inline-block}
@@ -290,20 +305,12 @@ body:not(.work) .work-only{display:none}
 
   <nav class="days" id="days" aria-label="Den"></nav>
 
-  <div class="seg viewseg" role="tablist" aria-label="Zobrazení">
-    <button type="button" role="tab" data-view="list" aria-selected="true">Volné časy</button>
-    <button type="button" role="tab" data-view="grid" aria-selected="false">Obsazenost</button>
-  </div>
-
-  <section class="picks" id="picks" aria-live="polite"></section>
-
-  <div id="gridview" hidden>
+  <div id="gridview">
   <div class="legend">
-    <span><i style="background:var(--ball-3)"></i>Hratelné, 90+ min</span>
-    <span class="work-only"><i style="background:var(--turf-3)"></i>Mimo tvé časy 120</span>
-    <span class="work-only"><i style="background:var(--turf-2)"></i>90</span>
-    <span><i style="background:var(--turf-1)"></i>Jen 60 min</span>
-    <span><i style="background:var(--busy)"></i>Obsazeno</span>
+    <span><i style="background:var(--ball-3)"></i>Volno</span>
+    <span class="work-only"><i style="background:rgba(212,255,58,.3)"></i>Volno mimo tvé časy</span>
+    <span><i style="background:rgba(255,255,255,.1)"></i>Obsazeno</span>
+    <span><i style="background:transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.15)"></i>Zavřeno</span>
   </div>
   <div id="grid"></div>
 
@@ -317,7 +324,7 @@ const DOW_LONG = ["neděli","pondělí","úterý","středu","čtvrtek","pátek",
 let DATA = null, day = null, work = false;
 const SPLITS = [60, 90, 120, 180, 240];
 let split = (() => { try { const v = +localStorage.getItem("padel-split"); return SPLITS.includes(v) ? v : 0; } catch(e){ return 0; } })();
-let view = (() => { try { return localStorage.getItem("padel-view") === "grid" ? "grid" : "list"; } catch(e){ return "list"; } })();
+let view = "grid", _oldView = (() => { try { return localStorage.getItem("padel-view") === "grid" ? "grid" : "list"; } catch(e){ return "list"; } })();
 
 const hm = s => { const [h,m] = s.split(":").map(Number); return h*60+m; };
 const fmt = m => String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
@@ -467,13 +474,20 @@ function renderPicks(){
   });
 }
 
+// Volná půlhodina = pokrytá nějakým volným začátkem (kód 1 = 60 min, 2 = 90, 3 = 120+).
+function freeHalves(c){
+  const n = c.length, f = Array(n).fill(false), span = {"1": 2, "2": 3, "3": 4};
+  for (let j=0;j<n;j++){ const k = span[c[j]]; if (k) for (let x=j; x<Math.min(n, j+k); x++) f[x] = true; }
+  return f;
+}
 function renderGrid(){
   const el = document.getElementById("grid"), n = DATA.grid.n;
   let cols = [...Array(n).keys()];
-  const ws = windowsFor(day);
-  if (work && ws.length && !(ws[0][0] === 0 && ws[0][1] >= 1440)){
-    cols = cols.filter(i => { const t = slotMin(i); return ws.some(([s,e]) => t >= s - 30 && t < e); });
-  }
+  const ws = windowsFor(day), limited = work && ws.length && !(ws[0][0] === 0 && ws[0][1] >= 1440);
+  if (limited) cols = cols.filter(i => { const t = slotMin(i); return ws.some(([s,e]) => t >= s && t < e); });
+  // jen sloupce, kde má aspoň jedno centrum otevřeno
+  cols = cols.filter(i => DATA.venues.some(v => v.rows.some(r => (r.cells[day] || "")[i] && r.cells[day][i] !== ".")));
+  const inWin = i => !limited || ws.some(([s,e]) => slotMin(i) >= s && slotMin(i) < e);
   let html = "";
   for (const v of DATA.venues){
     const rows = v.rows.filter(r => r.cells[day]);
@@ -481,19 +495,23 @@ function renderGrid(){
       <a href="${v.url}" target="_blank" rel="noopener">Rezervovat</a></div>`;
     if (!v.ok) html += `<p class="stale">${v.rows.length ? "Data jsou ze starší kontroly, rezervační systém teď neodpovídá." : "Rezervační systém teď neodpovídá, zkusí se to znovu při další kontrole."}</p>`;
     if (!rows.length){ html += `</section>`; continue; }
-    html += `<div class="scroller"><table class="grid"><thead><tr><th class="court"></th>`;
-    for (const i of cols){ const t = slotMin(i); html += `<th class="${t%60?"":"hour"}" data-t="${t}">${t%60 ? "" : t/60}</th>`; }
+    html += `<div class="scroller"><table class="slots"><thead><tr><th class="court"></th>`;
+    for (let x=0; x<cols.length; x++){
+      const t = slotMin(cols[x]);
+      if (t % 60 === 0 || x === 0){
+        const span = cols[x+1] !== undefined && slotMin(cols[x+1]) === t + 30 && t % 60 === 0 ? 2 : 1;
+        html += `<th class="hr" colspan="${span}" data-t="${t}">${t % 60 === 0 ? t/60 : ""}</th>`;
+        if (span === 2) x++;
+      }
+    }
     html += `</tr></thead><tbody>`;
     for (const r of rows){
-      const c = r.cells[day];
+      const c = r.cells[day], f = freeHalves(c);
       html += `<tr><th class="court" scope="row" title="${esc(r.name)}">${esc(r.name)}</th>`;
-      let prevW = false;
       for (const i of cols){
-        const ch = c[i] || ".", w = inWindow(day,i), q = qualifies(day,i,ch);
-        const cls = ["c"+ch, q ? "w" : "", work && w && !prevW && ws[0][1] - ws[0][0] < 1440 ? "wstart" : "", isPast(day,i) ? "past" : ""].join(" ");
-        const label = ch === "." ? "zavřeno" : ch === "0" ? "obsazeno" : `volno ${ch==="3"?"120+":ch==="2"?"90":"60"} min`;
-        html += `<td class="${cls}" title="${fmt(slotMin(i))} · ${label}"></td>`;
-        prevW = w;
+        const t = slotMin(i), st = c[i] === "." || !c[i] ? "closed" : f[i] ? "free" : "busy";
+        const cls = [st, t % 60 === 0 ? "h0" : "h1", f[i-1] && st === "free" ? "joinl" : "", f[i+1] && st === "free" ? "joinr" : "", !inWin(i) ? "out" : "", isPast(day,i) ? "past" : ""].join(" ");
+        html += `<td class="${cls}" title="${fmt(t)}–${fmt(t+30)} · ${st === "free" ? "volno" : st === "busy" ? "obsazeno" : "zavřeno"}"></td>`;
       }
       html += `</tr>`;
     }
@@ -516,16 +534,6 @@ function scrollGridToNow(){
   }
 }
 
-function renderView(){
-  document.querySelectorAll(".viewseg button").forEach(b => b.setAttribute("aria-selected", b.dataset.view === view));
-  document.getElementById("picks").hidden = view !== "list";
-  document.getElementById("gridview").hidden = view !== "grid";
-}
-document.querySelectorAll(".viewseg button").forEach(b => b.onclick = () => {
-  view = b.dataset.view; try { localStorage.setItem("padel-view", view); } catch(e){}
-  renderView(); scrollGridToNow();
-});
-
 function renderUpdated(){
   const g = new Date(DATA.generated), mins = Math.round((Date.now() - g) / 60000);
   const rel = mins < 1 ? "právě teď" : mins < 60 ? `před ${mins} min` : `v ${g.getHours()}:${String(g.getMinutes()).padStart(2,"0")}`;
@@ -535,7 +543,7 @@ function renderUpdated(){
 
 function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
-function render(){ renderView(); renderDays(); renderPicks(); renderGrid(); renderUpdated(); }
+function render(){ renderDays(); renderGrid(); renderUpdated(); }
 
 function setWork(on, rerender){
   work = on && LOGGED === true && !!PREFS;
