@@ -197,6 +197,12 @@ button.seat.free:hover{color:var(--ink)}
 .seat{font-size:14px;font-weight:600;padding:5px 10px;border-radius:8px;background:var(--turf-1)}
 .seat.free{background:transparent;border:1px dashed var(--line);color:var(--muted);font-weight:500}
 .seat.you{background:var(--ball-3);color:var(--ball-ink)}
+.pick-players{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.pick-players button{font:inherit;font-size:14px;font-weight:700;border:0;cursor:pointer;padding:6px 12px;background:rgba(255,255,255,.08);color:var(--ink)}
+.pick-players button[aria-pressed="true"]{background:var(--ball-3);color:var(--ball-ink)}
+.pick-players button:disabled{opacity:.35;cursor:default}
+.addp{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0 8px}
+.addp select{flex:1;min-width:150px}
 a.plink{color:inherit;text-decoration:none}
 a.plink:hover{text-decoration:underline}
 a.seat,.pay-who a{text-decoration:none}
@@ -308,6 +314,10 @@ a.btn{text-decoration:none;display:inline-block}
         </div>
         <label>Kde<select id="nf-venue"></select></label>
         <p class="note" id="nf-hint" style="margin:0"></p>
+        <div id="nf-players" hidden>
+          <span class="note" style="display:block;margin:2px 0 6px">Kdo hrál s tebou (až 3):</span>
+          <div class="pick-players" id="nf-plist"></div>
+        </div>
         <div class="actions">
           <button class="btn ball small" id="nf-create" type="button">Založit a přidat se</button>
           <button class="btn ghost small" id="nf-cancel" type="button">Zrušit</button>
@@ -991,18 +1001,20 @@ function renderPlayed(){
   for (const m of [...todo, ...done]){
     const inIt = m.players.includes(me.id), canJoin = !inIt && !!joinUpdate(m);
     const joinBtn = canJoin ? `<button class="btn small" data-pjoin type="button">Hrál jsem taky</button>` : "";
+    const addable = inIt && m.players.length < 4 ? players().filter(p => !m.players.includes(p.id)) : [];
+    const addSel = addable.length ? `<div class="addp"><select data-addp aria-label="Přidat hráče do zápasu"><option value="">+ Přidat spoluhráče…</option>${addable.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></div>` : "";
     const leaveBtn = inIt && !m.winners ? `<button class="linkbtn" data-pleave type="button">Nehrál jsem</button>` : "";
     const head = `<div class="when">${dateTitle(m.date)}</div><div class="opt-head"><span class="opt-time">${fmt(m.start)}–${fmt(m.start + m.dur)}</span>${m.venue ? `<span class="court">${esc(m.venueName)}</span>` : ""}</div>`;
     if (m.winners){
       h += `<div class="match" data-id="${m.id}">${head}
         <p class="result">🏆 <b>${m.winners.map(id => plink(id, esc(names[id] || id))).join(" & ")}</b> porazili ${m.losers.map(id => plink(id, esc(names[id] || id))).join(" & ")}${m.score ? ` · ${esc(m.score)}` : ""}</p>
-        ${planHidden.has(m.id) ? "" : courtPlan(m, true)}
+        ${planHidden.has(m.id) ? "" : courtPlan(m, true)}${addSel}
         <div class="actions"><button class="linkbtn" data-result type="button">Opravit výsledek</button>${joinBtn}${planToggle(m)}</div>
         ${resultOpen === m.id ? resultForm(m) : ""}${payBlock(m)}</div>`;
     } else {
       h += `<div class="match" data-id="${m.id}">${head}
         <p class="note" style="margin:6px 0 8px">Hráli: ${m.players.map(id => plink(id, esc(names[id] || id))).join(", ")}</p>
-        ${planHidden.has(m.id) ? "" : courtPlan(m, true)}
+        ${planHidden.has(m.id) ? "" : courtPlan(m, true)}${addSel}
         ${resultOpen === m.id ? resultForm(m) : `<div class="actions"><button class="btn ball small" data-result type="button">Zapsat výsledek</button>${joinBtn}${planToggle(m)}${leaveBtn}<button class="linkbtn" data-skip type="button">Nehráli jsme</button></div>`}${payBlock(m)}</div>`;
     }
   }
@@ -1028,6 +1040,13 @@ function renderPlayed(){
     const pj = el.querySelector("[data-pjoin]");
     if (pj) pj.onclick = async () => { const upd = joinUpdate(m); if (!upd) return; pj.disabled = true;
       try { await api.updateMatch(m.id, withSides(m, upd)); } catch(e){ pj.disabled = false; showError("Přidání se nepovedlo: " + e.message); } };
+    const ap = el.querySelector("[data-addp]");
+    if (ap) ap.onchange = async () => {
+      const p = players().find(x => x.id === ap.value); if (!p || m.players.length >= 4) return;
+      ap.disabled = true;
+      try { await api.updateMatch(m.id, withSides(m, {players: [...m.players, p.id], [`names.${p.id}`]: p.name})); }
+      catch(e){ ap.disabled = false; showError("Hráče se nepodařilo přidat: " + e.message); }
+    };
     const pl = el.querySelector("[data-pleave]");
     if (pl) pl.onclick = async () => { pl.disabled = true;
       try { await api.updateMatch(m.id, {players: m.players.filter(id => id !== me.id), [`pos.${me.id}`]: null}); } catch(e){ pl.disabled = false; showError("Odebrání se nepovedlo: " + e.message); } };
@@ -1258,7 +1277,22 @@ function fillNewForm(){
   $("nf-venue").innerHTML = `<option value="">Ještě nevím</option>` + venueList().map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join("");
   newHint();
 }
+let nfPicked = [];
+function renderNfPlayers(){
+  const past = isPast($("nf-date").value, idxOf(+$("nf-start").value));
+  $("nf-players").hidden = !past;
+  $("nf-create").textContent = past ? "Založit odehraný zápas" : "Založit a přidat se";
+  if (!past) return;
+  const list = players().filter(p => p.id !== me.id);
+  nfPicked = nfPicked.filter(id => list.some(p => p.id === id));
+  $("nf-plist").innerHTML = list.length ? list.map(p => `<button type="button" data-pid="${p.id}" aria-pressed="${nfPicked.includes(p.id)}" ${!nfPicked.includes(p.id) && nfPicked.length >= 3 ? "disabled" : ""}>${esc(p.name)}</button>`).join("")
+    : `<span class="note">Zatím tu nikdo další není zaregistrovaný.</span>`;
+  $("nf-plist").querySelectorAll("[data-pid]").forEach(b => b.onclick = () => {
+    const id = b.dataset.pid; nfPicked = nfPicked.includes(id) ? nfPicked.filter(x => x !== id) : [...nfPicked, id].slice(0, 3); renderNfPlayers();
+  });
+}
 function newHint(){
+  renderNfPlayers();
   const date = $("nf-date").value, start = +$("nf-start").value, dur = +$("nf-dur").value, vid = $("nf-venue").value;
   const past = isPast(date, idxOf(start));
   $("nf-create").disabled = false;
@@ -1282,10 +1316,13 @@ $("nf-create").onclick = async () => {
     await api.addMatch({
       date: $("nf-date").value, start: +$("nf-start").value, dur: +$("nf-dur").value,
       venue: v ? v.id : "", venueName: v ? v.name : "", url: v ? v.url : "",
-      players: [me.id], names: {[me.id]: me.name}, invited: [],
+      ...(() => { const past = isPast($("nf-date").value, idxOf(+$("nf-start").value)), ids = [me.id, ...(past ? nfPicked : [])], nm = {};
+        for (const id of ids) nm[id] = id === me.id ? me.name : (players().find(p => p.id === id) || {}).name || "?";
+        return {players: ids, names: nm}; })(),
+      invited: [],
       booked: null, created: Date.now(), by: me.id,
     });
-    $("new-form").hidden = true;
+    $("new-form").hidden = true; nfPicked = [];
   } catch(e){ showError("Zápas se nepodařilo založit: " + e.message); }
   b.disabled = false;
 };
