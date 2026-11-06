@@ -865,7 +865,7 @@ function courtPlan(m, played = false){
       const mine = id === me.id;
       return `<button type="button" class="spot ${mine ? "you" : ""}" data-pos="${k}" ${mine ? 'title="Kliknutím uvolníš místo"' : "disabled"}><span class="nm">${esc(m.names[id] || id)}</span><span class="sd">${SIDE[k]}</span></button>`;
     }
-    if (played) return `<button type="button" class="spot" data-pos="${k}" ${inIt ? "" : "disabled"} aria-label="${k < 2 ? "Tým A" : "Tým B"}, ${SIDE[k]}"><span class="add">+</span><span class="sd">${SIDE[k]}</span></button>`;
+    if (played) return `<button type="button" class="spot" data-pos="${k}" ${inIt || joinUpdate(m, k) ? "" : "disabled"} aria-label="${k < 2 ? "Tým A" : "Tým B"}, ${SIDE[k]}"><span class="add">+</span><span class="sd">${SIDE[k]}</span></button>`;
     const h = holdsOf(m).find(x => x.pos === k);
     if (h){
       const can = !inIt && !!joinUpdate(m, k);
@@ -888,7 +888,7 @@ function withSides(m, upd){
   if (!m.winSide) return upd;
   const pos = {...(m.pos || {})};
   for (const [k, v] of Object.entries(upd)) if (k.startsWith("pos.")) pos[k.slice(4)] = v;
-  const t = teamsFromPos({...m, pos});
+  const t = teamsFromPos({...m, pos, players: upd.players || m.players});
   if (t){ upd.winners = m.winSide === "A" ? t.t1 : t.t2; upd.losers = m.winSide === "A" ? t.t2 : t.t1; }
   return upd;
 }
@@ -899,7 +899,7 @@ function wirePlan(el, m, played = false){
     try {
       const inIt = m.players.includes(me.id), placed = Object.values(at).includes(me.id);
       if (played){
-        if (!inIt) return;
+        if (!inIt){ const upd = !at[k] && joinUpdate(m, k); if (upd) await api.updateMatch(m.id, withSides(m, upd)); return; }
         await api.updateMatch(m.id, withSides(m, {[`pos.${me.id}`]: at[k] === me.id ? null : k}));
         return;
       }
@@ -989,18 +989,21 @@ function renderPlayed(){
   $("played-card").hidden = !todo.length && !done.length;
   let h = "";
   for (const m of [...todo, ...done]){
+    const inIt = m.players.includes(me.id), canJoin = !inIt && !!joinUpdate(m);
+    const joinBtn = canJoin ? `<button class="btn small" data-pjoin type="button">Hrál jsem taky</button>` : "";
+    const leaveBtn = inIt && !m.winners ? `<button class="linkbtn" data-pleave type="button">Nehrál jsem</button>` : "";
     const head = `<div class="when">${dateTitle(m.date)}</div><div class="opt-head"><span class="opt-time">${fmt(m.start)}–${fmt(m.start + m.dur)}</span>${m.venue ? `<span class="court">${esc(m.venueName)}</span>` : ""}</div>`;
     if (m.winners){
       h += `<div class="match" data-id="${m.id}">${head}
         <p class="result">🏆 <b>${m.winners.map(id => plink(id, esc(names[id] || id))).join(" & ")}</b> porazili ${m.losers.map(id => plink(id, esc(names[id] || id))).join(" & ")}${m.score ? ` · ${esc(m.score)}` : ""}</p>
         ${planHidden.has(m.id) ? "" : courtPlan(m, true)}
-        <div class="actions"><button class="linkbtn" data-result type="button">Opravit výsledek</button>${planToggle(m)}</div>
+        <div class="actions"><button class="linkbtn" data-result type="button">Opravit výsledek</button>${joinBtn}${planToggle(m)}</div>
         ${resultOpen === m.id ? resultForm(m) : ""}${payBlock(m)}</div>`;
     } else {
       h += `<div class="match" data-id="${m.id}">${head}
         <p class="note" style="margin:6px 0 8px">Hráli: ${m.players.map(id => plink(id, esc(names[id] || id))).join(", ")}</p>
         ${planHidden.has(m.id) ? "" : courtPlan(m, true)}
-        ${resultOpen === m.id ? resultForm(m) : `<div class="actions"><button class="btn ball small" data-result type="button">Zapsat výsledek</button>${planToggle(m)}<button class="linkbtn" data-skip type="button">Nehráli jsme</button></div>`}${payBlock(m)}</div>`;
+        ${resultOpen === m.id ? resultForm(m) : `<div class="actions"><button class="btn ball small" data-result type="button">Zapsat výsledek</button>${joinBtn}${planToggle(m)}${leaveBtn}<button class="linkbtn" data-skip type="button">Nehráli jsme</button></div>`}${payBlock(m)}</div>`;
     }
   }
   $("played").innerHTML = h;
@@ -1019,6 +1022,12 @@ function renderPlayed(){
     const f = el.querySelector(".form:not(.payform)"); if (f) wireResultForm(f, m);
     wirePay(el, m);
     wirePlan(el, m, true);
+    const pj = el.querySelector("[data-pjoin]");
+    if (pj) pj.onclick = async () => { const upd = joinUpdate(m); if (!upd) return; pj.disabled = true;
+      try { await api.updateMatch(m.id, withSides(m, upd)); } catch(e){ pj.disabled = false; showError("Přidání se nepovedlo: " + e.message); } };
+    const pl = el.querySelector("[data-pleave]");
+    if (pl) pl.onclick = async () => { pl.disabled = true;
+      try { await api.updateMatch(m.id, {players: m.players.filter(id => id !== me.id), [`pos.${me.id}`]: null}); } catch(e){ pl.disabled = false; showError("Odebrání se nepovedlo: " + e.message); } };
 
   });
 }
