@@ -13,8 +13,13 @@ from .grid import TZ, days, from_busy, from_free_intervals, from_starts, hm, to_
 from .net import Session
 
 
-def iso_dt(s):
-    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+def iso_dt(s, naive_tz=None):
+    """ISO čas → datetime. Čas bez časového pásma (Reservanto posílá "2026-11-09T07:00:00")
+    je místní pražský čas; bez toho by se na GitHubu (UTC) posunul o hodinu až dvě."""
+    dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    if dt.tzinfo is None and naive_tz is not None:
+        dt = dt.replace(tzinfo=naive_tz)
+    return dt
 
 
 def opening_from(starts_ends, fallback):
@@ -210,11 +215,11 @@ def reservanto(v):
                         cells = src.get("availability") or []
                         if not cells:
                             continue
-                        d = iso_dt(cells[0]["StartTime"]).astimezone(TZ).date()
+                        d = iso_dt(cells[0]["StartTime"], TZ).astimezone(TZ).date()
                         ymd = d.isoformat()
                         if ymd not in want:
                             continue
-                        spans = [(to_min(iso_dt(c["StartTime"]), d), to_min(iso_dt(c["EndTime"]), d))
+                        spans = [(to_min(iso_dt(c["StartTime"], TZ), d), to_min(iso_dt(c["EndTime"], TZ), d))
                                  for c in cells]
                         free = []
                         for (st, en), c in zip(spans, cells):
