@@ -1013,13 +1013,13 @@ function renderPlayed(){
     if (m.winners){
       h += `<div class="match" id="m-${m.id}" data-id="${m.id}">${head}
         <p class="result">🏆 <b>${m.winners.map(id => plink(id, esc(names[id] || id))).join(" & ")}</b> porazili ${m.losers.map(id => plink(id, esc(names[id] || id))).join(" & ")}${m.score ? ` · ${esc(m.score)}` : ""}</p>
-        ${planHidden.has(m.id) ? "" : courtPlan(m, true)}${addSel}
+        ${addSel}
         <div class="actions"><button class="linkbtn" data-result type="button">Opravit výsledek</button>${joinBtn}${chatButton(m)}${paidBtn}${planToggle(m)}</div>
         ${chatPanel(m)}${resultOpen === m.id ? resultForm(m) : ""}${payBlock(m)}</div>`;
     } else {
       h += `<div class="match" id="m-${m.id}" data-id="${m.id}">${head}
         <p class="note" style="margin:6px 0 8px">Hráli: ${m.players.map(id => plink(id, esc(names[id] || id))).join(", ")}</p>
-        ${planHidden.has(m.id) ? "" : courtPlan(m, true)}${addSel}
+        ${addSel}
         ${resultOpen === m.id ? resultForm(m) : `<div class="actions"><button class="btn ball small" data-result type="button">Zapsat výsledek</button>${joinBtn}${chatButton(m)}${paidBtn}${planToggle(m)}${leaveBtn}<button class="linkbtn" data-skip type="button">Nehráli jsme</button></div>`}${chatPanel(m)}${payBlock(m)}</div>`;
     }
   }
