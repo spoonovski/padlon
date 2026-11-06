@@ -260,7 +260,13 @@ dialog.qr-dlg img{width:100%;height:auto;display:block}
 dialog.qr-dlg p{font-weight:800;font-size:20px;margin:10px 0}
 dialog.qr-dlg .qr-actions{display:flex;gap:8px;justify-content:center}
 dialog.qr-dlg .btn.ghost{background:#e8edf5 !important;color:#06142f !important}
-.pay-qrrow{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.pay-qrrow{display:flex;gap:16px;align-items:center;flex-wrap:nowrap}
+.pay-qrrow .pay-qr{flex:none;width:min(128px,36vw)}
+.pay-qrrow .pay-qr img{width:100%;height:auto;display:block}
+.pay-big{min-width:0}
+.pay-big{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.pay-big .amt{font-size:clamp(34px,10vw,48px);line-height:.95;font-weight:900;font-style:italic;font-stretch:80%;color:var(--ball-3);letter-spacing:-.01em;white-space:nowrap}
+.pay-big .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:-4px}
 a.btn{text-decoration:none;display:inline-block}
 .setup{line-height:1.55}
 .setup code{background:var(--glass);padding:1px 5px;border-radius:5px;font-size:14px}
@@ -371,7 +377,7 @@ a.btn{text-decoration:none;display:inline-block}
 <dialog id="qr-dlg" class="qr-dlg" aria-label="QR kód pro platbu">
   <img id="qr-img" alt="QR kód pro platbu">
   <p id="qr-cap"></p>
-  <form method="dialog" class="qr-actions"><a class="btn" id="qr-dl" href="#" download>Stáhnout</a><button class="btn ghost" type="submit">Zavřít</button></form>
+  <form method="dialog" class="qr-actions"><button class="btn" id="qr-dl" type="button">Uložit / sdílet</button><button class="btn ghost" type="submit">Zavřít</button></form>
 </dialog>
 
 <script type="module">
@@ -1123,7 +1129,8 @@ function payBlock(m){
   let h = `<div class="pay">`;
   if (m.price) h += `<div class="pay-sum"><span>Kurt <b>${kc(m.price)}</b></span><span class="pay-share">na hráče <b>${kc(share)}</b></span><span class="note">4 místa · ${m.dur} min</span></div>`;
   if (m.qr) h += `<div class="pay-qrrow"><button class="pay-qr" type="button" data-qr-open aria-label="Zvětšit QR kód"><img src="${esc(m.qr)}" alt="QR kód pro platbu" loading="lazy"></button>
-    <a class="btn ghost small" data-qr-dl href="${esc(m.qr)}" download="${qrName(m)}">Stáhnout QR</a></div>`;
+    <div class="pay-big">${m.price ? `<span class="amt">${kc(Math.ceil(m.price / SEATS))}</span><span class="lbl">pošli na hráče</span>` : ""}
+      <button class="btn ghost small" data-qr-dl type="button">${canShareFiles ? "Uložit / sdílet QR" : "Stáhnout QR"}</button></div></div>`;
   if (!m.price && !m.qr) h += `<p class="note" style="margin:0 0 6px">${mine ? "Přidej cenu kurtu a QR kód, ať ti ostatní pošlou peníze." : `Čeká se na cenu a QR kód od ${esc(names[m.booked] || "rezervujícího")}.`}</p>`;
   // kdo už zaplatil
   const others = m.players.filter(id => id !== m.booked);
@@ -1173,14 +1180,31 @@ async function shrinkQr(file){
   } finally { URL.revokeObjectURL(url); }
 }
 
+// Uložení QR: na mobilu systémové sdílení (Uložit obrázek do Fotek, AirDrop, WhatsApp…),
+// jinde normální stažení souboru. Odkaz s data: URL Safari na iPhonu neuloží.
+const canShareFiles = (() => { try { return !!(navigator.canShare && navigator.canShare({files: [new File([""], "x.png", {type: "image/png"})]})); } catch(e){ return false; } })();
+async function saveQr(m){
+  const blob = await (await fetch(m.qr)).blob();
+  const name = qrName(m).replace(/\.(png|jpe?g)$/i, "") + (blob.type === "image/jpeg" ? ".jpg" : ".png");
+  const file = new File([blob], name, {type: blob.type});
+  if (canShareFiles && navigator.canShare({files: [file]})){
+    try { await navigator.share({files: [file], title: "QR platba za kurt", text: m.price ? `Na hráče ${kc(Math.ceil(m.price / SEATS))}` : undefined}); return; }
+    catch(e){ if (e.name === "AbortError") return; }
+  }
+  const url = URL.createObjectURL(blob), a = document.createElement("a");
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
 function wirePay(el, m){
   const q = sel => el.querySelector(sel);
   const run = async (b, fn) => { if (b) b.disabled = true; try { await fn(); } catch(e){ const pm = q("[data-paymsg]"); (pm || {}).textContent = e.code === "permission-denied" ? "Firebase změnu odmítla (zkontroluj pravidla)." : e.message; if (!pm) showError("Akce se nepovedla: " + e.message); } if (b) b.disabled = false; };
   const open = q("[data-qr-open]"); if (open) open.onclick = () => {
-    $("qr-img").src = m.qr; $("qr-dl").href = m.qr; $("qr-dl").download = qrName(m);
+    $("qr-img").src = m.qr; $("qr-dl").onclick = () => saveQr(m).catch(e => showError("QR se nepodařilo uložit: " + e.message));
+    $("qr-dl").textContent = canShareFiles ? "Uložit / sdílet" : "Stáhnout";
     $("qr-cap").textContent = m.price ? `Na hráče ${kc(Math.ceil(m.price / SEATS))}` : "";
     $("qr-dlg").showModal();
   };
+  const dl = q("[data-qr-dl]"); if (dl) dl.onclick = () => saveQr(m).catch(e => showError("QR se nepodařilo uložit: " + e.message));
   const pd = q("[data-paid]"); if (pd) pd.onclick = () => run(pd, () => api.updateMatch(m.id, {paid: [...new Set([...(m.paid || []), me.id])]}));
   const up = q("[data-unpaid]"); if (up) up.onclick = () => run(up, () => api.updateMatch(m.id, {paid: (m.paid || []).filter(x => x !== me.id)}));
   const ed = q("[data-pay-edit]"); if (ed) ed.onclick = () => { payOpen = m.id; render(); };
