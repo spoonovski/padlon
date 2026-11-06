@@ -266,7 +266,7 @@ dialog.qr-dlg .btn.ghost{background:#e8edf5 !important;color:#06142f !important}
 .pay-big{min-width:0}
 .pay-big{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
 .pay-big .amt{font-size:clamp(34px,10vw,48px);line-height:.95;font-weight:900;font-style:italic;font-stretch:80%;color:var(--ball-3);letter-spacing:-.01em;white-space:nowrap}
-.pay-big .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:-4px}
+.pay-big .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:-6px}
 a.btn{text-decoration:none;display:inline-block}
 .setup{line-height:1.55}
 .setup code{background:var(--glass);padding:1px 5px;border-radius:5px;font-size:14px}
@@ -1127,9 +1127,9 @@ function payBlock(m){
   const paid = m.paid || [];
   const share = m.price ? Math.ceil(m.price / n) : null;
   let h = `<div class="pay">`;
-  if (m.price) h += `<div class="pay-sum"><span>Kurt <b>${kc(m.price)}</b></span><span class="pay-share">na hráče <b>${kc(share)}</b></span><span class="note">4 místa · ${m.dur} min</span></div>`;
+  if (m.price) h += `<div class="pay-sum"><span>Kurt <b>${kc(m.price)}</b></span>${m.qr ? "" : `<span class="pay-share">na hráče <b>${kc(share)}</b></span>`}<span class="note">4 místa · ${m.dur} min</span></div>`;
   if (m.qr) h += `<div class="pay-qrrow"><button class="pay-qr" type="button" data-qr-open aria-label="Zvětšit QR kód"><img src="${esc(m.qr)}" alt="QR kód pro platbu" loading="lazy"></button>
-    <div class="pay-big">${m.price ? `<span class="amt">${kc(Math.ceil(m.price / SEATS))}</span><span class="lbl">pošli na hráče</span>` : ""}
+    <div class="pay-big">${m.price ? `<span class="lbl">Na hráče</span><span class="amt">${kc(Math.ceil(m.price / SEATS))}</span>` : ""}
       <button class="btn ghost small" data-qr-dl type="button">${canShareFiles ? "Uložit / sdílet QR" : "Stáhnout QR"}</button></div></div>`;
   if (!m.price && !m.qr) h += `<p class="note" style="margin:0 0 6px">${mine ? "Přidej cenu kurtu a QR kód, ať ti ostatní pošlou peníze." : `Čeká se na cenu a QR kód od ${esc(names[m.booked] || "rezervujícího")}.`}</p>`;
   // kdo už zaplatil
